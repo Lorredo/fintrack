@@ -2,27 +2,29 @@ import {
   ReactNode,
   useEffect,
   useState,
-} from 'react';
+} from "react";
 
 import {
   useAuthStore,
-} from '@/features/auth/store/auth.store';
+} from "@/features/auth/store/auth.store";
 
 import {
   storage,
   StorageKeys,
-} from '@/lib/storage';
+} from "@/lib/storage";
 
 
 interface Props {
   children: ReactNode;
 }
 
+
 export function AuthProvider({
   children,
 }: Props) {
 
-  const [loading, setLoading] =
+
+  const [loading,setLoading] =
     useState(true);
 
 
@@ -32,9 +34,12 @@ export function AuthProvider({
     );
 
 
-  useEffect(() => {
 
-    async function restoreSession(){
+  useEffect(()=>{
+
+
+    function restoreSession(){
+
 
       const token =
         storage.get(
@@ -42,9 +47,13 @@ export function AuthProvider({
         );
 
 
+
       if(token){
+
         restoreToken(token);
+
       }
+
 
 
       setLoading(false);
@@ -52,15 +61,23 @@ export function AuthProvider({
     }
 
 
+
     restoreSession();
 
-  }, [restoreToken]);
+
+  },[restoreToken]);
+
+
 
 
   if(loading){
+
     return null;
+
   }
 
 
+
   return children;
+
 }

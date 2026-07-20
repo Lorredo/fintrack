@@ -203,7 +203,6 @@ useAuthStore
 .getState()
 .restoreToken(
  newAccessToken,
- refreshToken
 );
 
 
