@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# IDE
+.vscode
+.idea
+
+# Node
+node_modules
+
+# Expo
+.expo
+
+# Go
+bin/
+
+# Coverage
+coverage/
+
+# Misc
+dist/
