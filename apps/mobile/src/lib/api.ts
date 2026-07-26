@@ -7,9 +7,9 @@ import {
   StorageKeys,
 } from './storage';
 
-import {
-  AuthApi,
-} from '@/features/auth/api/auth.api';
+// import {
+//   AuthApi,
+// } from '@/features/auth/api/auth.api';
 
 import {
   useAuthStore,
@@ -113,43 +113,43 @@ async(error)=>{
 
 
 
-      const response =
-        await AuthApi.refresh({
+      // const response =
+      //   await AuthApi.refresh({
 
-          refreshToken,
+      //     refreshToken,
 
-        });
-
-
-
-      const newAccessToken =
-        response.accessToken;
+      //   });
 
 
 
-      storage.set(
-
-        StorageKeys.ACCESS_TOKEN,
-
-        newAccessToken
-
-      );
+      // const newAccessToken =
+      //   response.accessToken;
 
 
 
-      useAuthStore
-        .getState()
-        .restoreToken(
+      // storage.set(
 
-          newAccessToken,
+      //   StorageKeys.ACCESS_TOKEN,
 
+      //   newAccessToken
 
-        );
-
+      // );
 
 
-      originalRequest.headers.Authorization =
-        `Bearer ${newAccessToken}`;
+
+      // useAuthStore
+      //   .getState()
+      //   .restoreToken(
+
+      //     newAccessToken,
+
+
+      //   );
+
+
+
+      // originalRequest.headers.Authorization =
+      //   `Bearer ${newAccessToken}`;
 
 
 

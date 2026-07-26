@@ -27,8 +27,7 @@ useAuthStore(
 if(!hydrated){
   return null;
 }
-
-
+console.log(`Access Token: ${accessToken}`);
 
 if(!accessToken){
 

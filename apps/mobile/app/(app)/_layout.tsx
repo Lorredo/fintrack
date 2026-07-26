@@ -1,20 +1,19 @@
+
 import AuthGuard from "@/shared/navigation/AuthGuard";
+
 import { Stack } from "expo-router";
 
-export default function AppLayout(){
+export default function AppLayout() {
+  return (
+    <>
 
-return (
-
-    <AuthGuard>
-
-    <Stack
-    screenOptions={{
-        headerShown:false
-    }}
-    />
-
-    </AuthGuard>
-
-);
-
+      <AuthGuard>
+        <Stack
+          screenOptions={{
+            headerShown: false
+          }}
+        />
+      </AuthGuard>
+    </>
+  );
 }

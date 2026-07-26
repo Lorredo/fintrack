@@ -1,11 +1,10 @@
-import { View } from "react-native";
-
+import { Screen } from "@/components/ui/";
 import LoginForm from "../components/LoginForm";
 
 export default function LoginScreen() {
   return (
-    <View>
+    <Screen>
       <LoginForm />
-    </View>
+    </Screen>
   );
 }

@@ -12,69 +12,15 @@ import { API_ENDPOINTS } from '@/shared/constants/api';
 
 export class AuthApi {
   static async login(
-  payload: LoginRequest,
-): Promise<LoginResponse> {
-
-
-  console.log(
-    "MOCK LOGIN REQUEST",
-    payload
-  );
-
-
-  await new Promise(
-    resolve => setTimeout(resolve,1000)
-  );
-
-
-  if(
-    payload.email !== "test@test.com" ||
-    payload.password !== "12345678"
-  ){
-
-    throw new Error(
-      "Invalid credentials"
+    payload: LoginRequest,
+  ): Promise<LoginResponse> {
+    const { data } = await api.post<LoginResponse>(
+      API_ENDPOINTS.AUTH.LOGIN,
+      payload,
     );
 
+    return data;
   }
-
-
-  const response: LoginResponse = {
-
-    user: {
-
-      id: 1,
-
-      firstName: "Test",
-
-      lastName: "User",
-
-      email: payload.email,
-
-      createdAt:
-        new Date().toISOString(),
-
-      updatedAt:
-        new Date().toISOString(),
-
-    },
-
-
-    tokens: {
-
-      accessToken:
-        "mock-access-token",
-
-      refreshToken:
-        "mock-refresh-token",
-
-    }
-
-  };
-
-
-  return response;
-}
 
   static async register(
     payload: RegisterRequest,

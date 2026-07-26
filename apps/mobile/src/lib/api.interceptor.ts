@@ -135,12 +135,10 @@ failedQueue.push({
 .then(token=>{
 
 
-originalRequest.headers.Authorization =
-`Bearer ${token}`;
+originalRequest.headers.Authorization = `Bearer ${token}`;
 
 
 return api(originalRequest);
-
 
 });
 

@@ -1,109 +1,77 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-} from "react-native";
+import { View } from "react-native";
 
 import { useState } from "react";
 import { loginSchema } from "../validation/login.schema";
 import { useLogin } from "../hooks/useLogin";
-import { useRouter } from "expo-router";
-
-
+import { useAppNavigation } from "@/shared/navigation/navigationHelpers";
+import { Button, Input, FormError } from "@/components/ui";
+import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
 
 export default function LoginForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [validationError, setValidationError] = useState("");
 
-  const [email,setEmail] = useState("");
-  const [password,setPassword] = useState("");
+  const router = useAppNavigation();
+  const { handleError } = useApiErrorHandler();
 
-  const [error,setError] = useState("");
+  const {
+    loginAsync,
+    loading,
+    error: loginError,
+  } = useLogin();
 
+  async function handleSubmit() {
+    const result = loginSchema.safeParse({ email, password });
 
-const router = useRouter();
+    if (!result.success) {
+      setValidationError(result.error.issues[0].message);
+      return;
+    }
 
-const {
-  loginAsync,
-  loading,
-  error: loginError,
-} = useLogin();
+    try {
+      setValidationError("");
 
+      await loginAsync({ email, password });
 
-async function handleSubmit(){
-
-  const result =
-    loginSchema.safeParse({
-      email,
-      password,
-    });
-
-
-  if(!result.success){
-
-    setError(
-      result.error
-        .issues[0]
-        .message
-    );
-
-    return;
+      router.goToHome();
+    } catch (error) {
+      handleError(error);
+    }
   }
 
+  return (
+    <View className="gap-md p-md">
+      <Input
+        label="Email"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Email"
+        autoCapitalize="none"
+        keyboardType="email-address"
+      />
 
-  try {
+      <Input
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Password"
+        secureTextEntry
+      />
 
-    setError("");
+     {Boolean(validationError) && (
+  <FormError message={validationError} />
+)}
 
+      {loginError && !validationError && (
+        <FormError message={loginError?.message} />
+      )}
 
-    await loginAsync({
-      email,
-      password,
-    });
-
-
-    router.replace("/");
-
-
-  } catch(error){
-
-    console.log(error);
-
-  }
-
-}
-
-return (
-  <View>
-    <TextInput
-      value={email}
-      onChangeText={setEmail}
-      placeholder="Email"
-      autoCapitalize="none"
-    />
-
-    <TextInput
-      value={password}
-      onChangeText={setPassword}
-      placeholder="Password"
-      secureTextEntry
-    />
-
-  {error || loginError ? (
-<Text>
-  {error || loginError?.message}
-</Text>
-) : null}
-
-  <Pressable
-  onPress={handleSubmit}
-  disabled={loading}
->
-
-<Text>
-  {loading ? "Logging in..." : "Login"}
-</Text>
-
-</Pressable>
-  </View>
-);
+      <Button
+        title="Login"
+        onPress={handleSubmit}
+        loading={loading}
+      />
+    </View>
+  );
 }
