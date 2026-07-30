@@ -18,7 +18,7 @@ Monorepo
 
 | Phase | Area | Status |
 |---|---|---|
-| **1** | **Project Setup** | 🟡 Partial |
+| **1** | **Project Setup** | ✅ Complete |
 | | Git | ✅ |
 | | React Native (Expo) | ✅ |
 | | Backend (Go Fiber) | ✅ |
@@ -46,22 +46,31 @@ Monorepo
 | | Add/Edit form with type toggle, category chips, amount, date | ✅ |
 | | Delete with confirmation dialog | ✅ |
 | | React Query hooks with cache invalidation | ✅ |
-| **5** | **Dashboard** | ❌ Not Started |
-| | Current Balance, Income, Expense, Charts | |
-| **6** | **Budgets** | ❌ Not Started |
-| **7** | **Reports** | ❌ Not Started |
+| **5** | **Dashboard** | ✅ Complete |
+| | Current Balance, Income, Expense summary | ✅ |
+| | Recent transactions | ✅ |
+| | Category breakdown | ✅ |
+| | Monthly filtering | ✅ |
+| **6** | **Budgets** | ✅ Complete |
+| | Budget CRUD (List, Get, Create, Update, Delete) | ✅ |
+| | Monthly budget per category | ✅ |
+| | Spent vs remaining tracking | ✅ |
+| | Mobile list and form screens | ✅ |
+| **7** | **Reports** | ✅ Complete |
+| | Monthly trends (income/expense/net over time) | ✅ |
+| | Category comparison with previous month | ✅ |
+| | CSV export for any month | ✅ |
+| | Mobile reports screen with tabbed views | ✅ |
 | **8** | **Settings** | ❌ Not Started |
 | **9** | **Production** | ❌ Not Started |
 
 ## Suggested Next Steps
 
-If you'd like to proceed, here's what I recommend tackling:
-
 1. ~~__Fix the mocked login__ and User.id type mismatch (quick wins)~~ ✅
 2. ~~__Implement Transactions CRUD__ (backend + frontend)~~ ✅
-3. __Build Dashboard__ - Summary cards (balance, income, expense), charts
-4. __Implement Budgets__ - Set monthly budgets by category, track spending progress
-5. __Implement Reports__ - Monthly trends, category breakdowns, export
+3. ~~__Build Dashboard__ - Summary cards (balance, income, expense), charts~~ ✅
+4. ~~__Implement Budgets__ - Set monthly budgets by category, track spending progress~~ ✅
+5. ~~__Implement Reports__ - Monthly trends, category breakdowns, export~~ ✅
 6. __Add a migration runner__ to the Go backend
 7. __Production readiness__ - Error monitoring, CI/CD, deployment
 
@@ -101,8 +110,8 @@ finance-tracker/
 │   │   ├── cmd/api/main.go     # Entry point
 │   │   └── internal/
 │   │       ├── config/         # Environment config
-│   │       ├── database/       # DB connection & migrations
-│   │       ├── handlers/       # Request handlers (auth, transactions)
+│   │       ├── database/       # DB connection, migrations, Querier interface
+│   │       ├── handlers/       # Request handlers
 │   │       ├── middleware/     # Auth middleware
 │   │       ├── models/         # Data models & DTOs
 │   │       └── routes/         # Route definitions
@@ -110,7 +119,7 @@ finance-tracker/
 │       ├── app/                # Expo Router pages
 │       └── src/
 │           ├── components/ui/  # Design system components
-│           ├── features/       # Feature modules (auth, transactions)
+│           ├── features/       # Feature modules (auth, transactions, budgets, dashboard, reports)
 │           ├── hooks/          # Shared React Query hooks
 │           ├── lib/            # API client, storage, query client
 │           ├── providers/      # App providers
@@ -141,6 +150,27 @@ finance-tracker/
 | POST | `/api/v1/transactions` | Yes | Create |
 | PUT | `/api/v1/transactions/:id` | Yes | Update |
 | DELETE | `/api/v1/transactions/:id` | Yes | Delete |
+
+### Dashboard
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/dashboard/summary` | Yes | Get monthly summary (income, expense, balance, category breakdown) |
+
+### Budgets
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/budgets` | Yes | List budgets (optional month filter) |
+| GET | `/api/v1/budgets/:id` | Yes | Get single budget with spent |
+| POST | `/api/v1/budgets` | Yes | Create budget |
+| PUT | `/api/v1/budgets/:id` | Yes | Update budget |
+| DELETE | `/api/v1/budgets/:id` | Yes | Delete budget |
+
+### Reports
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/api/v1/reports/trends` | Yes | Monthly income/expense/net trends (optional `months` param) |
+| GET | `/api/v1/reports/categories` | Yes | Category breakdown with previous month comparison (optional `month` param) |
+| GET | `/api/v1/reports/export` | Yes | Export transactions as CSV (optional `month` and `format` params) |
 
 ### Health
 | Method | Endpoint | Auth | Description |

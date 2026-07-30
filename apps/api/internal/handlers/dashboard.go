@@ -10,10 +10,17 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/models"
 )
 
-type DashboardHandler struct{}
+type DashboardHandler struct {
+	db database.Querier
+}
 
 func NewDashboardHandler() *DashboardHandler {
-	return &DashboardHandler{}
+	return &DashboardHandler{db: database.Pool}
+}
+
+// NewDashboardHandlerWithDB creates a handler with a custom DB (for testing).
+func NewDashboardHandlerWithDB(db database.Querier) *DashboardHandler {
+	return &DashboardHandler{db: db}
 }
 
 // Summary returns aggregated dashboard data for the authenticated user.
@@ -30,7 +37,7 @@ func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 
 	// Get total income for the month
 	var totalIncome float64
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`SELECT COALESCE(SUM(amount), 0) FROM transactions
 		 WHERE user_id = $1 AND type = 'income' AND date >= $2 AND date < $3`,
@@ -44,7 +51,7 @@ func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 
 	// Get total expense for the month
 	var totalExpense float64
-	err = database.Pool.QueryRow(
+	err = h.db.QueryRow(
 		context.Background(),
 		`SELECT COALESCE(SUM(amount), 0) FROM transactions
 		 WHERE user_id = $1 AND type = 'expense' AND date >= $2 AND date < $3`,
@@ -57,7 +64,7 @@ func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 	}
 
 	// Get recent transactions
-	rows, err := database.Pool.Query(
+	rows, err := h.db.Query(
 		context.Background(),
 		`SELECT id, user_id, type, amount, category, description, date, created_at, updated_at
 		 FROM transactions WHERE user_id = $1
@@ -84,7 +91,7 @@ func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 	}
 
 	// Get category breakdown for the month
-	catRows, err := database.Pool.Query(
+	catRows, err := h.db.Query(
 		context.Background(),
 		`SELECT category, type, SUM(amount) as total, COUNT(*) as count
 		 FROM transactions WHERE user_id = $1 AND date >= $2 AND date < $3

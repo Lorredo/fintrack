@@ -10,10 +10,17 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/models"
 )
 
-type BudgetHandler struct{}
+type BudgetHandler struct {
+	db database.Querier
+}
 
 func NewBudgetHandler() *BudgetHandler {
-	return &BudgetHandler{}
+	return &BudgetHandler{db: database.Pool}
+}
+
+// NewBudgetHandlerWithDB creates a handler with a custom DB (for testing).
+func NewBudgetHandlerWithDB(db database.Querier) *BudgetHandler {
+	return &BudgetHandler{db: db}
 }
 
 // List returns all budgets for the authenticated user, optionally filtered by month.
@@ -25,7 +32,7 @@ func (h *BudgetHandler) List(c *fiber.Ctx) error {
 	var err error
 
 	if month != "" {
-		rows, err = database.Pool.Query(
+		rows, err = h.db.Query(
 			context.Background(),
 			`SELECT b.id, b.user_id, b.category, b.amount, b.month, b.created_at, b.updated_at,
 				COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as spent
@@ -39,7 +46,7 @@ func (h *BudgetHandler) List(c *fiber.Ctx) error {
 			userID, month,
 		)
 	} else {
-		rows, err = database.Pool.Query(
+		rows, err = h.db.Query(
 			context.Background(),
 			`SELECT b.id, b.user_id, b.category, b.amount, b.month, b.created_at, b.updated_at,
 				COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as spent
@@ -83,7 +90,7 @@ func (h *BudgetHandler) Get(c *fiber.Ctx) error {
 	budgetID := c.Params("id")
 
 	var b models.Budget
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`SELECT id, user_id, category, amount, month, created_at, updated_at
 		 FROM budgets WHERE id = $1 AND user_id = $2`,
@@ -102,7 +109,7 @@ func (h *BudgetHandler) Get(c *fiber.Ctx) error {
 	}
 
 	// Calculate spent for this budget's category and month
-	err = database.Pool.QueryRow(
+	err = h.db.QueryRow(
 		context.Background(),
 		`SELECT COALESCE(SUM(amount), 0) FROM transactions
 		 WHERE user_id = $1 AND category = $2 AND type = 'expense'
@@ -150,7 +157,7 @@ func (h *BudgetHandler) Create(c *fiber.Ctx) error {
 	}
 
 	var b models.Budget
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`INSERT INTO budgets (user_id, category, amount, month)
 		 VALUES ($1, $2, $3, $4)
@@ -177,7 +184,7 @@ func (h *BudgetHandler) Update(c *fiber.Ctx) error {
 	budgetID := c.Params("id")
 
 	// Check exists
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`SELECT id FROM budgets WHERE id = $1 AND user_id = $2`,
 		budgetID, userID,
@@ -209,7 +216,7 @@ func (h *BudgetHandler) Update(c *fiber.Ctx) error {
 		updated_at = NOW()
 		WHERE id = $4 AND user_id = $5
 		RETURNING id, user_id, category, amount, month, created_at, updated_at`
-	err = database.Pool.QueryRow(
+	err = h.db.QueryRow(
 		context.Background(), query,
 		req.Category, req.Amount, req.Month, budgetID, userID,
 	).Scan(&b.ID, &b.UserID, &b.Category, &b.Amount, &b.Month, &b.CreatedAt, &b.UpdatedAt)
@@ -232,7 +239,7 @@ func (h *BudgetHandler) Delete(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
 	budgetID := c.Params("id")
 
-	result, err := database.Pool.Exec(
+	result, err := h.db.Exec(
 		context.Background(),
 		`DELETE FROM budgets WHERE id = $1 AND user_id = $2`,
 		budgetID, userID,

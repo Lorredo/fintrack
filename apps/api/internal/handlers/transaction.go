@@ -14,10 +14,17 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/models"
 )
 
-type TransactionHandler struct{}
+type TransactionHandler struct {
+	db database.Querier
+}
 
 func NewTransactionHandler() *TransactionHandler {
-	return &TransactionHandler{}
+	return &TransactionHandler{db: database.Pool}
+}
+
+// NewTransactionHandlerWithDB creates a handler with a custom DB (for testing).
+func NewTransactionHandlerWithDB(db database.Querier) *TransactionHandler {
+	return &TransactionHandler{db: db}
 }
 
 // List returns paginated transactions for the authenticated user.
@@ -69,7 +76,7 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 	// Count total
 	var total int
 	countQuery := `SELECT COUNT(*) ` + baseQuery
-	err := database.Pool.QueryRow(context.Background(), countQuery, args...).Scan(&total)
+	err := h.db.QueryRow(context.Background(), countQuery, args...).Scan(&total)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to count transactions",
@@ -83,7 +90,7 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 	)
 	args = append(args, limit, offset)
 
-	rows, err := database.Pool.Query(context.Background(), selectQuery, args...)
+	rows, err := h.db.Query(context.Background(), selectQuery, args...)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to fetch transactions",
@@ -124,7 +131,7 @@ func (h *TransactionHandler) Get(c *fiber.Ctx) error {
 
 	var t models.Transaction
 	var dateTime time.Time
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`SELECT id, user_id, type, amount, category, description, date, created_at, updated_at
 		 FROM transactions WHERE id = $1 AND user_id = $2`,
@@ -184,7 +191,7 @@ func (h *TransactionHandler) Create(c *fiber.Ctx) error {
 
 	var t models.Transaction
 	var dateTime time.Time
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`INSERT INTO transactions (user_id, type, amount, category, description, date)
 		 VALUES ($1, $2, $3, $4, $5, $6)
@@ -214,7 +221,7 @@ func (h *TransactionHandler) Update(c *fiber.Ctx) error {
 
 	// First check the transaction exists and belongs to user
 	var existingID string
-	err := database.Pool.QueryRow(
+	err := h.db.QueryRow(
 		context.Background(),
 		`SELECT id FROM transactions WHERE id = $1 AND user_id = $2`,
 		transactionID, userID,
@@ -291,7 +298,7 @@ func (h *TransactionHandler) Update(c *fiber.Ctx) error {
 
 	var t models.Transaction
 	var dateTime time.Time
-	err = database.Pool.QueryRow(context.Background(), query, args...).Scan(
+	err = h.db.QueryRow(context.Background(), query, args...).Scan(
 		&t.ID, &t.UserID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -314,7 +321,7 @@ func (h *TransactionHandler) Delete(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
 	transactionID := c.Params("id")
 
-	result, err := database.Pool.Exec(
+	result, err := h.db.Exec(
 		context.Background(),
 		`DELETE FROM transactions WHERE id = $1 AND user_id = $2`,
 		transactionID, userID,

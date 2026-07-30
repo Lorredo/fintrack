@@ -23,4 +23,9 @@ export const API_ENDPOINTS = {
     UPDATE: (id: string) => `/api/v1/budgets/${id}`,
     DELETE: (id: string) => `/api/v1/budgets/${id}`,
   },
+  REPORTS: {
+    TRENDS: '/api/v1/reports/trends',
+    CATEGORIES: '/api/v1/reports/categories',
+    EXPORT: '/api/v1/reports/export',
+  },
 } as const;

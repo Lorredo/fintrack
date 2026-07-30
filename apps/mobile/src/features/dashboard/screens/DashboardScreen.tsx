@@ -100,6 +100,15 @@ export default function DashboardScreen() {
               title="Add Transaction"
               onPress={() => router.push('/transactions')}
             />
+                  <Button 
+        title="Go to Budgets" 
+        onPress={() => router.push('/budgets')} 
+      />
+      <Button 
+        title="Go to Reports" 
+        onPress={() => router.push('/reports')} 
+      />
+
           </View>
         </View>
 

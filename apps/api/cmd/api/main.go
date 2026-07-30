@@ -56,9 +56,10 @@ func main() {
 	transactionHandler := handlers.NewTransactionHandler()
 	dashboardHandler := handlers.NewDashboardHandler()
 	budgetHandler := handlers.NewBudgetHandler()
+	reportHandler := handlers.NewReportHandler()
 
 	// Routes
-	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler)
+	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler)
 
 	// Graceful shutdown
 	go func() {
