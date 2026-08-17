@@ -7,7 +7,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func AuthRequired() fiber.Handler {
+func 
+AuthRequired() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {

@@ -1,25 +1,46 @@
-import {
-  SafeAreaView,
-  ViewStyle,
-} from "react-native";
+// src/components/ui/Screen.tsx
+import { ReactNode } from 'react';
+import { View, ViewProps, ScrollView, RefreshControl } from 'react-native';
 
-interface ScreenProps {
-  children: React.ReactNode;
-  style?: ViewStyle;
-  padded?: boolean;
+interface ScreenProps extends ViewProps {
+  children: ReactNode;
+  scrollable?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
-export default function Screen({
+export function Screen({
   children,
-  style,
-  padded = true,
+  className = '',
+  scrollable = false,
+  refreshing = false,
+  onRefresh,
+  ...props
 }: ScreenProps) {
+  if (scrollable) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <ScrollView
+          className={`flex-1 px-4 ${className}`}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            ) : undefined
+          }
+          {...props}
+        >
+          {children}
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
-    <SafeAreaView
-      className={`flex-1 bg-background ${padded ? "px-md" : ""}`}
-      style={style}
-    >
-      {children}
-    </SafeAreaView>
+    <View style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      <View className={`flex-1 px-4 ${className}`} {...props}>
+        {children}
+      </View>
+    </View>
   );
 }

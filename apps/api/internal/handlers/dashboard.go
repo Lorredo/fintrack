@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +26,9 @@ func NewDashboardHandlerWithDB(db database.Querier) *DashboardHandler {
 
 // Summary returns aggregated dashboard data for the authenticated user.
 func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
+	fmt.Println("📊 Dashboard Summary called") // This will show in logs
 	userID := c.Locals("userID").(string)
+	fmt.Printf("User ID: %s\n", userID)
 
 	// Default to current month
 	now := time.Now()
@@ -116,6 +119,8 @@ func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 	}
 
 	balance := totalIncome - totalExpense
+
+	fmt.Printf("Dashboard Summary for user %s: Income: %.2f, Expense: %.2f, Balance: %.2f\n", userID, totalIncome, totalExpense, balance)
 
 	return c.JSON(models.DashboardSummary{
 		TotalIncome:        totalIncome,

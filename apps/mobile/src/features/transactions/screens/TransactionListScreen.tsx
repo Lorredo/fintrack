@@ -1,24 +1,50 @@
-import { useState, useCallback } from 'react';
-import { View, Text, FlatList, Alert } from 'react-native';
+import { useState, useCallback, useMemo } from 'react';
+import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Screen, Loader, EmptyState, Button, Modal } from '@/components/ui';
+import { Screen, Loader, EmptyState, Button, Modal, CategoryIcon } from '@/components/ui';
 import { useTransactionList, useDeleteTransaction, useCreateTransaction, useUpdateTransaction } from '../hooks/useTransactions';
-import TransactionItem from '../components/TransactionItem';
 import TransactionForm from '../components/TransactionForm';
 import type { Transaction, CreateTransactionInput, UpdateTransactionInput } from '../types';
+import { formatCurrency, formatDate } from '@/shared/utils/categories';
+
+type FilterTab = 'all' | 'income' | 'expense';
 
 export default function TransactionListScreen() {
   const [page, setPage] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useTransactionList({ page, limit: 20 });
+  const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
+    page,
+    limit: 20,
+    type: activeFilter === 'all' ? '' : activeFilter,
+  });
   const createMutation = useCreateTransaction();
   const updateMutation = useUpdateTransaction();
   const deleteMutation = useDeleteTransaction();
 
-  const transactions = data?.data ?? [];
+  const transactions = useMemo(() => {
+    const list = data?.data ?? [];
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(
+      (t) =>
+        t.category.toLowerCase().includes(q) ||
+        (t.description?.toLowerCase().includes(q) ?? false),
+    );
+  }, [data?.data, search]);
+
   const totalPages = data?.totalPages ?? 1;
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const handleCreate = useCallback(
     (input: CreateTransactionInput) => {
@@ -61,14 +87,12 @@ export default function TransactionListScreen() {
             text: 'Delete',
             style: 'destructive',
             onPress: () => {
-  console.log('[delete] confirmed for id:', id);
-  deleteMutation.mutate(id, {
-    onError: (err) => {
-      console.log('[delete] error:', err);
-      Alert.alert('Error', 'Failed to delete transaction');
-    },
-  });
-},
+              deleteMutation.mutate(id, {
+                onError: () => {
+                  Alert.alert('Error', 'Failed to delete transaction');
+                },
+              });
+            },
           },
         ],
       );
@@ -102,6 +126,12 @@ export default function TransactionListScreen() {
     [handleCreate, handleUpdate],
   );
 
+  const filterTabs: { key: FilterTab; label: string; icon: 'view-list' | 'cash-plus' | 'cash-minus' }[] = [
+    { key: 'all', label: 'All', icon: 'view-list' },
+    { key: 'income', label: 'Income', icon: 'cash-plus' },
+    { key: 'expense', label: 'Expense', icon: 'cash-minus' },
+  ];
+
   if (isLoading) {
     return (
       <Screen>
@@ -127,38 +157,80 @@ export default function TransactionListScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-md">
           <Text className="text-2xl font-bold text-text">Transactions</Text>
-          <Button title="Add" onPress={handleAddNew} />
+          <Button
+            icon="plus"
+            onPress={handleAddNew}
+            style={{ width: 44, height: 44, paddingHorizontal: 5}}
+          />
         </View>
 
-        {/* Summary bar */}
+        {/* Search Bar */}
+        <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border mb-sm">
+          <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
+          <TextInput
+            className="flex-1 text-body text-text ml-sm"
+            placeholder="Search transactions, categories..."
+            placeholderTextColor="#94A3B8"
+            value={search}
+            onChangeText={setSearch}
+            autoCapitalize="none"
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch('')}>
+              <MaterialCommunityIcons name="close-circle" size={20} color="#94A3B8" />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Filter Tabs */}
         <View className="flex-row gap-sm mb-md">
-          <View className="flex-1 bg-success/10 rounded-xl px-md py-sm">
-            <Text className="text-xs text-text-secondary">Income</Text>
-            <Text className="text-base font-bold text-success">
-              ${data?.data?.reduce((sum, t) => (t.type === 'income' ? sum + t.amount : sum), 0).toFixed(2) || '0.00'}
-            </Text>
-          </View>
-          <View className="flex-1 bg-danger/10 rounded-xl px-md py-sm">
-            <Text className="text-xs text-text-secondary">Expenses</Text>
-            <Text className="text-base font-bold text-danger">
-              ${data?.data?.reduce((sum, t) => (t.type === 'expense' ? sum + t.amount : sum), 0).toFixed(2) || '0.00'}
-            </Text>
-          </View>
+          {filterTabs.map((tab) => {
+            const isActive = activeFilter === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                className={`flex-row items-center px-md py-sm rounded-full gap-xs ${
+                  isActive ? 'bg-primary' : 'bg-surface border border-border'
+                }`}
+                onPress={() => {
+                  setActiveFilter(tab.key);
+                  setPage(1);
+                }}
+              >
+                <MaterialCommunityIcons
+                  name={tab.icon}
+                  size={16}
+                  color={isActive ? '#fff' : '#64748B'}
+                />
+                <Text
+                  className={`text-sm font-semibold ${
+                    isActive ? 'text-white' : 'text-text-secondary'
+                  }`}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Transaction list */}
         {transactions.length === 0 ? (
           <EmptyState
-            title="No transactions yet"
-            description="Start tracking your finances by adding your first transaction."
-            action={<Button title="Add Transaction" onPress={handleAddNew} />}
+            title={search ? 'No results found' : 'No transactions yet'}
+            description={
+              search
+                ? `No transactions match "${search}"`
+                : 'Start tracking your finances by adding your first transaction.'
+            }
+            action={<Button title="Add Transaction" icon="plus" onPress={handleAddNew} />}
           />
         ) : (
           <FlatList
             data={transactions}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <TransactionItem
+              <TransactionRow
                 transaction={item}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -166,6 +238,9 @@ export default function TransactionListScreen() {
             )}
             contentContainerClassName="gap-sm pb-lg"
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} />
+            }
             onEndReached={() => {
               if (page < totalPages) {
                 setPage((prev) => prev + 1);
@@ -193,5 +268,51 @@ export default function TransactionListScreen() {
         />
       </Modal>
     </Screen>
+  );
+}
+
+function TransactionRow({
+  transaction,
+  onEdit,
+  onDelete,
+}: {
+  transaction: Transaction;
+  onEdit: (transaction: Transaction) => void;
+  onDelete: (id: string) => void;
+}) {
+  const isExpense = transaction.type === 'expense';
+  const amountColor = isExpense ? 'text-danger' : 'text-success';
+  const sign = isExpense ? '-' : '+';
+
+  return (
+    <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border">
+      <CategoryIcon category={transaction.category} size="sm" />
+      <View className="flex-1 ml-md">
+        <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+          {transaction.category}
+        </Text>
+        {transaction.description && (
+          <Text className="text-xs text-text-secondary mt-1" numberOfLines={1}>
+            {transaction.description}
+          </Text>
+        )}
+        <Text className="text-xs text-text-secondary mt-1">
+          {formatDate(transaction.date)}
+        </Text>
+      </View>
+      <View className="items-end ml-sm">
+        <Text className={`text-base font-bold ${amountColor}`}>
+          {sign}{formatCurrency(transaction.amount)}
+        </Text>
+        <View className="flex-row gap-sm mt-xs">
+          <Pressable onPress={() => onEdit(transaction)} className="p-xs">
+            <MaterialCommunityIcons name="pencil" size={16} color="#2563EB" />
+          </Pressable>
+          <Pressable onPress={() => onDelete(transaction.id)} className="p-xs">
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+          </Pressable>
+        </View>
+      </View>
+    </View>
   );
 }

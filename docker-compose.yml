@@ -9,10 +9,9 @@ services:
       POSTGRES_PASSWORD: fintrack
       POSTGRES_DB: fintrack
     ports:
-      - "5433:5433"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/migrations:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fintrack"]
       interval: 5s
@@ -28,7 +27,7 @@ services:
       - "8080:8080"
     environment:
       SERVER_PORT: "8080"
-      DATABASE_URL: "postgres://postgres:postgres@localhost:5433/fintrack?sslmode=disable"
+      DATABASE_URL: "postgres://fintrack:fintrack@postgres:5432/fintrack?sslmode=disable"
       JWT_SECRET: "change-me-in-production"
       JWT_ACCESS_EXPIRY: "15m"
       JWT_REFRESH_EXPIRY: "168h"

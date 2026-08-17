@@ -14,6 +14,12 @@ export const TRANSACTION_KEYS = {
   detail: (id: string) => [...TRANSACTION_KEYS.all, 'detail', id] as const,
 };
 
+// Keys for related queries that depend on transaction data
+const RELATED_QUERY_KEYS = [
+  ['budgets'],
+  ['dashboard'],
+] as const;
+
 export function useTransactionList(params?: TransactionListParams) {
   return useQuery({
     queryKey: TRANSACTION_KEYS.list(params),
@@ -37,6 +43,9 @@ export function useCreateTransaction() {
     mutationFn: (input: CreateTransactionInput) => TransactionApi.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
+      RELATED_QUERY_KEYS.forEach((key) => {
+        queryClient.invalidateQueries({ queryKey: key });
+      });
     },
   });
 }
@@ -51,6 +60,9 @@ export function useUpdateTransaction() {
       queryClient.invalidateQueries({
         queryKey: TRANSACTION_KEYS.detail(variables.id),
       });
+      RELATED_QUERY_KEYS.forEach((key) => {
+        queryClient.invalidateQueries({ queryKey: key });
+      });
     },
   });
 }
@@ -62,6 +74,9 @@ export function useDeleteTransaction() {
     mutationFn: (id: string) => TransactionApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
+      RELATED_QUERY_KEYS.forEach((key) => {
+        queryClient.invalidateQueries({ queryKey: key });
+      });
     },
   });
 }

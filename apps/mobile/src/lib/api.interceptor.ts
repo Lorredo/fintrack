@@ -1,3 +1,5 @@
+import { router } from "expo-router";
+
 import { api } from "./api";
 
 import {
@@ -238,6 +240,9 @@ storage.clear();
 useAuthStore
 .getState()
 .clearSession();
+
+
+router.replace("/login");
 
 
 

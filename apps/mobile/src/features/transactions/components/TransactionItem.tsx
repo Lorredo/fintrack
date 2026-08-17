@@ -1,6 +1,9 @@
 import { View, Text, Pressable } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { CategoryIcon } from '@/components/ui';
 import type { Transaction } from '../types';
+import { formatCurrency, formatDate } from '@/shared/utils/categories';
 
 interface TransactionItemProps {
   transaction: Transaction;
@@ -19,14 +22,8 @@ export default function TransactionItem({
 
   return (
     <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border">
-      {/* Category icon placeholder */}
-      <View
-        className={`w-12 h-12 rounded-full items-center justify-center ${
-          isExpense ? 'bg-danger/10' : 'bg-success/10'
-        }`}
-      >
-        <Text className="text-lg">{getCategoryEmoji(transaction.category)}</Text>
-      </View>
+      {/* Category icon */}
+      <CategoryIcon category={transaction.category} size="sm" />
 
       {/* Details */}
       <View className="flex-1 ml-md">
@@ -49,44 +46,17 @@ export default function TransactionItem({
       {/* Amount & Actions */}
       <View className="items-end ml-sm">
         <Text className={`text-base font-bold ${amountColor}`}>
-          {sign}${transaction.amount.toFixed(2)}
+          {sign}{formatCurrency(transaction.amount)}
         </Text>
-        <View className="flex-row gap-xs mt-xs">
-          <Pressable onPress={() => onEdit(transaction)}>
-            <Text className="text-xs text-primary">Edit</Text>
+        <View className="flex-row gap-sm mt-xs">
+          <Pressable onPress={() => onEdit(transaction)} className="p-xs">
+            <MaterialCommunityIcons name="pencil" size={16} color="#2563EB" />
           </Pressable>
-          <Pressable onPress={() => onDelete(transaction.id)}>
-            <Text className="text-xs text-danger">Delete</Text>
+          <Pressable onPress={() => onDelete(transaction.id)} className="p-xs">
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
           </Pressable>
         </View>
       </View>
     </View>
   );
-}
-
-function getCategoryEmoji(category: string): string {
-  const emojiMap: Record<string, string> = {
-    'Food & Drinks': '🍔',
-    Transportation: '🚗',
-    Shopping: '🛍️',
-    Entertainment: '🎬',
-    'Bills & Utilities': '📄',
-    Housing: '🏠',
-    Health: '💊',
-    Education: '📚',
-    Salary: '💰',
-    Freelance: '💻',
-    Investment: '📈',
-  };
-
-  return emojiMap[category] || '💳';
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }

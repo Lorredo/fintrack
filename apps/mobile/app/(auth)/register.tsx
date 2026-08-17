@@ -1,5 +1,5 @@
-export default function RegisterScreen(){
+import RegisterScreen from '@/features/auth/screens/RegisterScreen';
 
-  return null;
-
+export default function RegisterPage() {
+  return <RegisterScreen />;
 }

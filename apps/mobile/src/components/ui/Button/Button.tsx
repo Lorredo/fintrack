@@ -1,4 +1,5 @@
 import { Pressable, Text, ActivityIndicator } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { ButtonProps } from "./Button.types";
 
@@ -16,29 +17,49 @@ const textClasses: Record<string, string> = {
   danger: "text-white",
 };
 
+const spinnerColors: Record<string, string> = {
+  primary: "#fff",
+  secondary: "#fff",
+  outline: "#2563EB",
+  danger: "#fff",
+};
+
 export default function Button({
   title,
   loading,
   variant = "primary",
   style,
   disabled,
+  icon,
+  iconSize = 20,
   ...props
 }: ButtonProps) {
   return (
     <Pressable
       disabled={disabled || loading}
-      className={`py-[14px] rounded-lg items-center justify-center ${variantClasses[variant]}`}
+      className={`py-[14px] rounded-lg items-center justify-center flex-row gap-sm ${variantClasses[variant]}`}
       style={style}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={spinnerColors[variant]} />
       ) : (
-        <Text
-          className={`font-semibold text-body ${textClasses[variant]}`}
-        >
-          {title}
-        </Text>
+        <>
+          {icon && (
+            <MaterialCommunityIcons
+              name={icon}
+              size={iconSize}
+              color={variant === "outline" ? "#2563EB" : "#fff"}
+            />
+          )}
+          {title && (
+            <Text
+              className={`font-semibold text-body ${textClasses[variant]}`}
+            >
+              {title}
+            </Text>
+          )}
+        </>
       )}
     </Pressable>
   );

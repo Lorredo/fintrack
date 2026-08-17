@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert, Share, Platform } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Alert, Share, Platform } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Screen, Loader, Button, Card } from '@/components/ui';
+import { Screen, Loader, Button, Card, SegmentedControl, ProgressBar } from '@/components/ui';
 import { useTrends, useCategoryComparison } from '../hooks/useReports';
 import { ReportsApi } from '../api/reports.api';
 import type { MonthlyTrend, CategoryComparison } from '../types';
+import { formatCurrency, formatMonth, getCategoryIcon, getCategoryColor } from '@/shared/utils/categories';
 
-type Tab = 'trends' | 'categories' | 'export';
+type Period = 'weekly' | 'monthly' | 'yearly';
 
 export default function ReportsScreen() {
-  const [activeTab, setActiveTab] = useState<Tab>('trends');
+  const [period, setPeriod] = useState<Period>('monthly');
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
   const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends, isRefetching: trendsRefetching } = useTrends(6);
@@ -21,7 +23,7 @@ export default function ReportsScreen() {
     refetchCategories();
   }, [refetchTrends, refetchCategories]);
 
-  const handleExport = useCallback(async () => {
+  const handleExport = useCallback(async (format: 'pdf' | 'excel') => {
     try {
       const response = await ReportsApi.exportCSV(selectedMonth);
       const csvData = typeof response === 'string' ? response : (response as any).data;
@@ -41,20 +43,14 @@ export default function ReportsScreen() {
         });
       }
     } catch {
-      Alert.alert('Error', 'Failed to export transactions');
+      Alert.alert('Error', `Failed to export ${format.toUpperCase()}`);
     }
   }, [selectedMonth]);
 
-  const navigateMonth = useCallback((direction: -1 | 1) => {
-    const [year, month] = selectedMonth.split('-').map(Number);
-    const date = new Date(year, month - 1 + direction, 1);
-    setSelectedMonth(date.toISOString().slice(0, 7));
-  }, [selectedMonth]);
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'trends', label: 'Trends' },
-    { key: 'categories', label: 'Categories' },
-    { key: 'export', label: 'Export' },
+  const periodOptions = [
+    { label: 'Weekly', value: 'weekly' as Period },
+    { label: 'Monthly', value: 'monthly' as Period },
+    { label: 'Yearly', value: 'yearly' as Period },
   ];
 
   return (
@@ -69,338 +65,230 @@ export default function ReportsScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between mb-md">
           <Text className="text-2xl font-bold text-text">Reports</Text>
+          <MaterialCommunityIcons name="chart-pie" size={24} color="#2563EB" />
         </View>
 
-        {/* Tab Bar */}
-        <View className="flex-row bg-border/30 rounded-xl p-xs mb-md">
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              className={`flex-1 py-sm rounded-lg items-center ${
-                activeTab === tab.key ? 'bg-primary' : ''
-              }`}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text
-                className={`text-sm font-semibold ${
-                  activeTab === tab.key ? 'text-white' : 'text-text-secondary'
-                }`}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Period Tabs */}
+        <View className="mb-md">
+          <SegmentedControl
+            options={periodOptions}
+            value={period}
+            onChange={setPeriod}
+          />
         </View>
 
-        {/* Tab Content */}
-        {activeTab === 'trends' && (
-          <TrendsTab data={trends} isLoading={trendsLoading} isError={trendsError} onRetry={refetchTrends} />
-        )}
-        {activeTab === 'categories' && (
-          <CategoriesTab
-            data={categories}
-            isLoading={categoriesLoading}
-            isError={categoriesError}
-            onRetry={refetchCategories}
-            selectedMonth={selectedMonth}
-            onPrevMonth={() => navigateMonth(-1)}
-            onNextMonth={() => navigateMonth(1)}
-          />
-        )}
-        {activeTab === 'export' && (
-          <ExportTab
-            selectedMonth={selectedMonth}
-            onPrevMonth={() => navigateMonth(-1)}
-            onNextMonth={() => navigateMonth(1)}
-            onExport={handleExport}
-          />
-        )}
+        {/* Spending Breakdown */}
+        <Card style={{ marginBottom: 16 }}>
+          <View className="flex-row items-center justify-between mb-sm">
+            <Text className="text-lg font-bold text-text">Spending Breakdown</Text>
+            <MaterialCommunityIcons name="chart-donut" size={20} color="#64748B" />
+          </View>
+          <Text className="text-xs text-text-secondary mb-md">{formatMonth(selectedMonth)}</Text>
+          {categoriesLoading ? (
+            <Loader />
+          ) : categoriesError ? (
+            <View className="items-center py-md">
+              <Text className="text-text-secondary mb-sm">Failed to load categories</Text>
+              <Button title="Retry" variant="outline" onPress={() => refetchCategories()} />
+            </View>
+          ) : (
+            <SpendingBreakdown data={categories ?? []} />
+          )}
+        </Card>
+
+        {/* Income vs Expenses */}
+        <Card style={{ marginBottom: 16 }}>
+          <View className="flex-row items-center justify-between mb-sm">
+            <Text className="text-lg font-bold text-text">Income vs Expenses</Text>
+            <MaterialCommunityIcons name="chart-bar" size={20} color="#64748B" />
+          </View>
+          <Text className="text-xs text-text-secondary mb-md">Last 6 months</Text>
+          {trendsLoading ? (
+            <Loader />
+          ) : trendsError ? (
+            <View className="items-center py-md">
+              <Text className="text-text-secondary mb-sm">Failed to load trends</Text>
+              <Button title="Retry" variant="outline" onPress={() => refetchTrends()} />
+            </View>
+          ) : (
+            <IncomeExpenseChart data={trends ?? []} />
+          )}
+        </Card>
+
+        {/* Spending Trajectory */}
+        <Card style={{ marginBottom: 16 }}>
+          <View className="flex-row items-center justify-between mb-sm">
+            <Text className="text-lg font-bold text-text">Spending Trajectory</Text>
+            <MaterialCommunityIcons name="chart-line" size={20} color="#64748B" />
+          </View>
+          <Text className="text-xs text-text-secondary mb-md">Net savings trend</Text>
+          {trendsLoading ? (
+            <Loader />
+          ) : (
+            <TrajectoryChart data={trends ?? []} />
+          )}
+        </Card>
+
+        {/* Export Buttons */}
+        <View className="mb-lg">
+          <Text className="text-lg font-bold text-text mb-sm">Export</Text>
+          <View className="flex-row gap-sm">
+            <View className="flex-1">
+              <Button
+                title="Export PDF"
+                variant="outline"
+                icon="file-pdf-box"
+                onPress={() => handleExport('pdf')}
+              />
+            </View>
+            <View className="flex-1">
+              <Button
+                title="Export Excel"
+                variant="outline"
+                icon="file-excel-box"
+                onPress={() => handleExport('excel')}
+              />
+            </View>
+          </View>
+          <Text className="text-xs text-text-secondary text-center mt-sm">
+            Export your financial data for the selected period
+          </Text>
+        </View>
       </ScrollView>
     </Screen>
   );
 }
 
-function TrendsTab({
-  data,
-  isLoading,
-  isError,
-  onRetry,
-}: {
-  data: MonthlyTrend[] | undefined;
-  isLoading: boolean;
-  isError: boolean;
-  onRetry: () => void;
-}) {
-  if (isLoading) return <Loader />;
-  if (isError) {
-    return (
-      <View className="items-center py-xl">
-        <Text className="text-text-secondary mb-md">Failed to load trends</Text>
-        <Button title="Retry" onPress={onRetry} />
-      </View>
-    );
-  }
-  if (!data || data.length === 0) {
-    return (
-      <View className="items-center py-xl">
-        <Text className="text-lg font-semibold text-text mb-sm">No data yet</Text>
-        <Text className="text-base text-text-secondary text-center px-lg">
-          Add some transactions to see your monthly trends.
-        </Text>
-      </View>
-    );
-  }
+function SpendingBreakdown({ data }: { data: CategoryComparison[] }) {
+  const expenseCategories = data.filter((c) => c.type === 'expense');
+  const totalExpense = expenseCategories.reduce((sum, c) => sum + c.currentMonthTotal, 0);
 
-  const maxValue = Math.max(...data.map((t) => Math.max(t.income, t.expense, Math.abs(t.net))), 1);
+  if (totalExpense === 0) {
+    return (
+      <View className="items-center py-md">
+        <Text className="text-text-secondary">No expense data for this period</Text>
+      </View>
+    );
+  }
 
   return (
     <View>
-      <Text className="text-lg font-bold text-text mb-md">Monthly Trends (Last 6 Months)</Text>
-
-      {/* Bar Chart */}
-      {data.map((trend) => {
-        const incomeHeight = (trend.income / maxValue) * 100;
-        const expenseHeight = (trend.expense / maxValue) * 100;
-        const netHeight = (Math.abs(trend.net) / maxValue) * 100;
-
+      {expenseCategories.map((cat, index) => {
+        const percent = (cat.currentMonthTotal / totalExpense) * 100;
+        const color = getCategoryColor(cat.category);
         return (
-          <Card key={trend.month} style={{ marginBottom: 12 }}>
-            <Text className="text-sm font-semibold text-text mb-sm">
-              {formatMonth(trend.month)}
-            </Text>
-            <View className="flex-row items-end h-24 gap-sm mb-xs">
-              {/* Income bar */}
-              <View className="flex-1 items-center">
-                <Text className="text-xs text-success font-semibold mb-xs">
-                  ${trend.income.toFixed(0)}
-                </Text>
-                <View
-                  className="w-full bg-success rounded-t-sm"
-                  style={{ height: `${Math.max(incomeHeight, 2)}%` }}
-                />
-                <Text className="text-xs text-text-secondary mt-xs">Income</Text>
+          <View key={`${cat.category}-${index}`} className="mb-sm">
+            <View className="flex-row items-center justify-between mb-xs">
+              <View className="flex-row items-center gap-sm">
+                <MaterialCommunityIcons name={getCategoryIcon(cat.category)} size={18} color={color} />
+                <Text className="text-sm font-semibold text-text">{cat.category}</Text>
               </View>
-              {/* Expense bar */}
-              <View className="flex-1 items-center">
-                <Text className="text-xs text-danger font-semibold mb-xs">
-                  ${trend.expense.toFixed(0)}
+              <View className="flex-row items-center gap-sm">
+                <Text className="text-sm font-semibold text-text">
+                  {formatCurrency(cat.currentMonthTotal)}
                 </Text>
-                <View
-                  className="w-full bg-danger rounded-t-sm"
-                  style={{ height: `${Math.max(expenseHeight, 2)}%` }}
-                />
-                <Text className="text-xs text-text-secondary mt-xs">Expense</Text>
-              </View>
-              {/* Net bar */}
-              <View className="flex-1 items-center">
-                <Text className={`text-xs font-semibold mb-xs ${trend.net >= 0 ? 'text-success' : 'text-danger'}`}>
-                  ${Math.abs(trend.net).toFixed(0)}
-                </Text>
-                <View
-                  className={`w-full rounded-t-sm ${trend.net >= 0 ? 'bg-success/50' : 'bg-danger/50'}`}
-                  style={{ height: `${Math.max(netHeight, 2)}%` }}
-                />
-                <Text className="text-xs text-text-secondary mt-xs">Net</Text>
+                <Text className="text-xs text-text-secondary">{percent.toFixed(0)}%</Text>
               </View>
             </View>
-          </Card>
+            <ProgressBar progress={percent} color={color} height={6} />
+          </View>
         );
       })}
     </View>
   );
 }
 
-function CategoriesTab({
-  data,
-  isLoading,
-  isError,
-  onRetry,
-  selectedMonth,
-  onPrevMonth,
-  onNextMonth,
-}: {
-  data: CategoryComparison[] | undefined;
-  isLoading: boolean;
-  isError: boolean;
-  onRetry: () => void;
-  selectedMonth: string;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-}) {
-  if (isLoading) return <Loader />;
-  if (isError) {
-    return (
-      <View className="items-center py-xl">
-        <Text className="text-text-secondary mb-md">Failed to load categories</Text>
-        <Button title="Retry" onPress={onRetry} />
-      </View>
-    );
-  }
-
-  const incomeCategories = data?.filter((c) => c.type === 'income') ?? [];
-  const expenseCategories = data?.filter((c) => c.type === 'expense') ?? [];
+function IncomeExpenseChart({ data }: { data: MonthlyTrend[] }) {
+  const maxValue = Math.max(...data.map((t) => Math.max(t.income, t.expense)), 1);
 
   return (
     <View>
-      {/* Month Picker */}
-      <View className="flex-row items-center justify-between mb-md">
-        <Button title="<" variant="outline" onPress={onPrevMonth} />
-        <Text className="text-base font-semibold text-text">{formatMonth(selectedMonth)}</Text>
-        <Button title=">" variant="outline" onPress={onNextMonth} />
-      </View>
+      {data.map((trend) => {
+        const incomeHeight = (trend.income / maxValue) * 100;
+        const expenseHeight = (trend.expense / maxValue) * 100;
+        const monthLabel = new Date(trend.month).toLocaleDateString('en-US', { month: 'short' });
 
-      {data && data.length === 0 && (
-        <View className="items-center py-xl">
-          <Text className="text-lg font-semibold text-text mb-sm">No transactions</Text>
-          <Text className="text-base text-text-secondary text-center px-lg">
-            No transactions found for this month.
-          </Text>
-        </View>
-      )}
-
-      {/* Income Categories */}
-      {incomeCategories.length > 0 && (
-        <View className="mb-md">
-          <Text className="text-lg font-bold text-text mb-sm">Income</Text>
-          {incomeCategories.map((cat, index) => (
-            <CategoryComparisonCard key={`${cat.category}-${index}`} item={cat} />
-          ))}
-        </View>
-      )}
-
-      {/* Expense Categories */}
-      {expenseCategories.length > 0 && (
-        <View className="mb-md">
-          <Text className="text-lg font-bold text-text mb-sm">Expenses</Text>
-          {expenseCategories.map((cat, index) => (
-            <CategoryComparisonCard key={`${cat.category}-${index}`} item={cat} />
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function CategoryComparisonCard({ item }: { item: CategoryComparison }) {
-  const isIncome = item.type === 'income';
-  const color = isIncome ? 'text-success' : 'text-danger';
-  const bgColor = isIncome ? 'bg-success/10' : 'bg-danger/10';
-  const barColor = isIncome ? 'bg-success' : 'bg-danger';
-  const maxTotal = Math.max(item.currentMonthTotal, item.previousMonthTotal, 1);
-  const currentWidth = (item.currentMonthTotal / maxTotal) * 100;
-  const prevWidth = (item.previousMonthTotal / maxTotal) * 100;
-
-  return (
-    <Card style={{ marginBottom: 8 }}>
-      <View className="flex-row items-center justify-between mb-sm">
-        <Text className="text-sm font-semibold text-text">
-          {getCategoryEmoji(item.category)} {item.category}
-        </Text>
+        return (
+          <View key={trend.month} className="flex-row items-center mb-sm">
+            <Text className="w-10 text-xs text-text-secondary">{monthLabel}</Text>
+            <View className="flex-1 flex-row items-end h-16 gap-xs">
+              <View className="flex-1 items-end">
+                <View
+                  className="w-full bg-success rounded-t-sm"
+                  style={{ height: `${Math.max(incomeHeight, 2)}%` }}
+                />
+              </View>
+              <View className="flex-1 items-end">
+                <View
+                  className="w-full bg-danger rounded-t-sm"
+                  style={{ height: `${Math.max(expenseHeight, 2)}%` }}
+                />
+              </View>
+            </View>
+            <View className="w-16 items-end">
+              <Text className="text-[10px] text-success font-semibold">
+                {formatCurrency(trend.income).replace('.00', '')}
+              </Text>
+              <Text className="text-[10px] text-danger font-semibold">
+                {formatCurrency(trend.expense).replace('.00', '')}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+      <View className="flex-row gap-md mt-sm">
         <View className="flex-row items-center gap-xs">
-          <Text className={`text-sm font-semibold ${color}`}>
-            {isIncome ? '+' : '-'}${item.currentMonthTotal.toFixed(2)}
-          </Text>
-          {item.previousMonthTotal > 0 && (
-            <Text className={`text-xs ${item.change >= 0 ? 'text-success' : 'text-danger'}`}>
-              ({item.change >= 0 ? '+' : ''}{item.changePercent.toFixed(0)}%)
-            </Text>
-          )}
+          <View className="w-3 h-3 rounded-full bg-success" />
+          <Text className="text-xs text-text-secondary">Income</Text>
+        </View>
+        <View className="flex-row items-center gap-xs">
+          <View className="w-3 h-3 rounded-full bg-danger" />
+          <Text className="text-xs text-text-secondary">Expense</Text>
         </View>
       </View>
-
-      {/* Current month bar */}
-      <View className="mb-xs">
-        <View className="flex-row justify-between mb-xs">
-          <Text className="text-xs text-text-secondary">This month</Text>
-          <Text className={`text-xs font-semibold ${color}`}>
-            ${item.currentMonthTotal.toFixed(2)}
-          </Text>
-        </View>
-        <View className={`h-2 rounded-full ${bgColor}`}>
-          <View
-            className={`h-full rounded-full ${barColor}`}
-            style={{ width: `${currentWidth}%` }}
-          />
-        </View>
-      </View>
-
-      {/* Previous month bar */}
-      {item.previousMonthTotal > 0 && (
-        <View>
-          <View className="flex-row justify-between mb-xs">
-            <Text className="text-xs text-text-secondary">Last month</Text>
-            <Text className="text-xs text-text-secondary">
-              ${item.previousMonthTotal.toFixed(2)}
-            </Text>
-          </View>
-          <View className="h-2 rounded-full bg-border/30">
-            <View
-              className="h-full rounded-full bg-border"
-              style={{ width: `${prevWidth}%` }}
-            />
-          </View>
-        </View>
-      )}
-    </Card>
-  );
-}
-
-function ExportTab({
-  selectedMonth,
-  onPrevMonth,
-  onNextMonth,
-  onExport,
-}: {
-  selectedMonth: string;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
-  onExport: () => void;
-}) {
-  return (
-    <View>
-      <Text className="text-lg font-bold text-text mb-md">Export Transactions</Text>
-      <Text className="text-sm text-text-secondary mb-md">
-        Download your transactions as a CSV file for the selected month.
-      </Text>
-
-      {/* Month Picker */}
-      <View className="flex-row items-center justify-between mb-lg">
-        <Button title="<" variant="outline" onPress={onPrevMonth} />
-        <Text className="text-base font-semibold text-text">{formatMonth(selectedMonth)}</Text>
-        <Button title=">" variant="outline" onPress={onNextMonth} />
-      </View>
-
-      <Button title={`Export ${formatMonth(selectedMonth)} as CSV`} onPress={onExport} />
-
-      <Text className="text-xs text-text-secondary text-center mt-md">
-        The CSV file will contain all transactions for the selected month including date, type, amount, category, and description.
-      </Text>
     </View>
   );
 }
 
-function formatMonth(month: string): string {
-  const [year, m] = month.split('-');
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  return `${months[parseInt(m, 10) - 1]} ${year}`;
-}
+function TrajectoryChart({ data }: { data: MonthlyTrend[] }) {
+  const maxNet = Math.max(...data.map((t) => Math.abs(t.net)), 1);
 
-function getCategoryEmoji(category: string): string {
-  const emojiMap: Record<string, string> = {
-    'Food & Drinks': '🍔',
-    Transportation: '🚗',
-    Shopping: '🛍️',
-    Entertainment: '🎬',
-    'Bills & Utilities': '📄',
-    Housing: '🏠',
-    Health: '💊',
-    Education: '📚',
-    Salary: '💰',
-    Freelance: '💻',
-    Investment: '📈',
-  };
-  return emojiMap[category] || '💳';
+  return (
+    <View>
+      {data.map((trend) => {
+        const netHeight = (Math.abs(trend.net) / maxNet) * 100;
+        const isPositive = trend.net >= 0;
+        const monthLabel = new Date(trend.month).toLocaleDateString('en-US', { month: 'short' });
+
+        return (
+          <View key={trend.month} className="flex-row items-center mb-sm">
+            <Text className="w-10 text-xs text-text-secondary">{monthLabel}</Text>
+            <View className="flex-1 flex-row items-center h-16">
+              <View className="flex-1 items-center">
+                <View
+                  className={`w-full rounded-sm ${isPositive ? 'bg-success/50' : 'bg-danger/50'}`}
+                  style={{ height: `${Math.max(netHeight, 2)}%` }}
+                />
+              </View>
+            </View>
+            <View className="w-16 items-end">
+              <Text className={`text-[10px] font-semibold ${isPositive ? 'text-success' : 'text-danger'}`}>
+                {isPositive ? '+' : '-'}{formatCurrency(Math.abs(trend.net)).replace('.00', '')}
+              </Text>
+            </View>
+          </View>
+        );
+      })}
+      <View className="flex-row gap-md mt-sm">
+        <View className="flex-row items-center gap-xs">
+          <View className="w-3 h-3 rounded-full bg-success/50" />
+          <Text className="text-xs text-text-secondary">Net Savings</Text>
+        </View>
+        <View className="flex-row items-center gap-xs">
+          <View className="w-3 h-3 rounded-full bg-danger/50" />
+          <Text className="text-xs text-text-secondary">Net Loss</Text>
+        </View>
+      </View>
+    </View>
+  );
 }

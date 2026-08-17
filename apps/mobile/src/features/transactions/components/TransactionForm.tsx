@@ -11,7 +11,7 @@ interface TransactionFormProps {
   loading?: boolean;
 }
 
-const CATEGORIES = [
+const EXPENSE_CATEGORIES = [
   'Food & Drinks',
   'Transportation',
   'Shopping',
@@ -20,9 +20,17 @@ const CATEGORIES = [
   'Housing',
   'Health',
   'Education',
+  'Other',
+];
+
+const INCOME_CATEGORIES = [
   'Salary',
   'Freelance',
   'Investment',
+  'Bonus & Commission',
+  'Side Hustle',
+  'Stocks & Dividends',
+  'Crypto & Digital',
   'Other',
 ];
 
@@ -46,6 +54,17 @@ export default function TransactionForm({
     transaction?.date || new Date().toISOString().split('T')[0],
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
+  const handleTypeChange = (newType: TransactionType) => {
+    setType(newType);
+    // Reset category if it doesn't belong to the newly selected type
+    const validCategories = newType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    if (category && !validCategories.includes(category)) {
+      setCategory('');
+    }
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -87,7 +106,7 @@ export default function TransactionForm({
       {/* Type selector */}
       <View className="flex-row gap-sm">
         <Pressable
-          onPress={() => setType('expense')}
+          onPress={() => handleTypeChange('expense')}
           className={`flex-1 py-sm px-md rounded-lg border-2 ${
             type === 'expense'
               ? 'border-danger bg-danger/10'
@@ -103,7 +122,7 @@ export default function TransactionForm({
           </Text>
         </Pressable>
         <Pressable
-          onPress={() => setType('income')}
+          onPress={() => handleTypeChange('income')}
           className={`flex-1 py-sm px-md rounded-lg border-2 ${
             type === 'income'
               ? 'border-success bg-success/10'
@@ -134,7 +153,7 @@ export default function TransactionForm({
       <View>
         <Text className="text-sm font-medium text-text mb-xs">Category</Text>
         <View className="flex-row flex-wrap gap-xs">
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <Pressable
               key={cat}
               onPress={() => setCategory(cat)}

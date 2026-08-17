@@ -1,12 +1,16 @@
-import { View, Text, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Screen, Loader, Button, Card } from '@/components/ui';
+import { Screen, Loader, Button, Card, CategoryIcon } from '@/components/ui';
 import { useDashboardSummary } from '../hooks/useDashboard';
-import TransactionItem from '@/features/transactions/components/TransactionItem';
+import { useAuthStore } from '@/features/auth/store/auth.store';
+import { getGreeting, formatCurrency, formatDate, getCategoryIcon } from '@/shared/utils/categories';
+import type { Transaction } from '@/features/transactions/types';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
   const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary();
 
   if (isLoading) {
@@ -20,7 +24,7 @@ export default function DashboardScreen() {
   if (isError) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center">
+        <View className="flex-1 items-center justify-center p-4">
           <Text className="text-text-secondary mb-md">Failed to load dashboard</Text>
           <Button title="Retry" onPress={() => refetch()} />
         </View>
@@ -29,182 +33,184 @@ export default function DashboardScreen() {
   }
 
   const summary = data!;
-  const incomeRatio = summary.totalIncome + summary.totalExpense > 0
-    ? (summary.totalIncome / (summary.totalIncome + summary.totalExpense)) * 100
-    : 0;
-  const expenseRatio = summary.totalIncome + summary.totalExpense > 0
-    ? (summary.totalExpense / (summary.totalIncome + summary.totalExpense)) * 100
-    : 0;
+  const fullName = user ? `${user.firstName} ${user.lastName}` : 'there';
+  const savingsGoal = 12500;
 
   return (
-    <Screen>
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} />
-        }
-      >
-        {/* Header */}
-        <View className="flex-row items-center justify-between mb-md">
-          <Text className="text-2xl font-bold text-text">Dashboard</Text>
-        </View>
+    <Screen scrollable refreshing={isRefetching} onRefresh={refetch}>
+      <View className="pt-1 pb-4">
+        <Text className="text-sm text-text-secondary">{getGreeting()},</Text>
+        <Text className="text-2xl font-bold text-text">{fullName}</Text>
+      </View>
 
-        {/* Balance Card */}
-        <Card style={{ marginBottom: 16 }}>
-          <Text className="text-sm text-text-secondary mb-xs">Current Balance</Text>
-          <Text className={`text-3xl font-bold ${summary.balance >= 0 ? 'text-success' : 'text-danger'}`}>
-            ${Math.abs(summary.balance).toFixed(2)}
+      {/* Balance Card */}
+      <Card style={{ marginBottom: 16, backgroundColor: '#2563EB' }}>
+        <View className="flex-row items-center justify-between mb-xs">
+          <Text className="text-sm text-white/80">Total Available Balance</Text>
+          <MaterialCommunityIcons name="wallet" size={24} color="rgba(255,255,255,0.8)" />
+        </View>
+        <Text className="text-3xl font-bold text-white">
+          {formatCurrency(summary.balance)}
+        </Text>
+        <View className="flex-row items-center mt-sm">
+          <MaterialCommunityIcons
+            name={summary.balance >= 0 ? 'trending-up' : 'trending-down'}
+            size={16}
+            color="rgba(255,255,255,0.6)"
+          />
+          <Text className="text-xs text-white/60 ml-xs">
+            {summary.balance >= 0 ? 'Positive' : 'Negative'} balance
           </Text>
-          {summary.balance < 0 && (
-            <Text className="text-xs text-danger mt-xs">{`You're in the red`}</Text>
-          )}
-        </Card>
-
-        {/* Income & Expense Cards */}
-        <View className="flex-row gap-sm mb-md">
-          <View className="flex-1 bg-success/10 rounded-xl px-md py-sm">
-            <Text className="text-xs text-text-secondary">Income</Text>
-            <Text className="text-xl font-bold text-success">
-              ${summary.totalIncome.toFixed(2)}
-            </Text>
-            {summary.totalIncome + summary.totalExpense > 0 && (
-              <View className="h-1 bg-success/30 rounded-full mt-xs">
-                <View
-                  className="h-full bg-success rounded-full"
-                  style={{ width: `${incomeRatio}%` }}
-                />
-              </View>
-            )}
-          </View>
-          <View className="flex-1 bg-danger/10 rounded-xl px-md py-sm">
-            <Text className="text-xs text-text-secondary">Expenses</Text>
-            <Text className="text-xl font-bold text-danger">
-              ${summary.totalExpense.toFixed(2)}
-            </Text>
-            {summary.totalIncome + summary.totalExpense > 0 && (
-              <View className="h-1 bg-danger/30 rounded-full mt-xs">
-                <View
-                  className="h-full bg-danger rounded-full"
-                  style={{ width: `${expenseRatio}%` }}
-                />
-              </View>
-            )}
-          </View>
         </View>
+      </Card>
 
-        {/* Quick Actions */}
-        <View className="flex-row gap-sm mb-md">
-          <View className="flex-1">
-            <Button
-              title="Add Transaction"
-              onPress={() => router.push('/transactions')}
-            />
-                  <Button 
-        title="Go to Budgets" 
-        onPress={() => router.push('/budgets')} 
-      />
-      <Button 
-        title="Go to Reports" 
-        onPress={() => router.push('/reports')} 
-      />
-
-          </View>
+      {/* Metrics Row */}
+      <View className="flex-row gap-sm mb-md">
+        <View className="flex-1 bg-success/10 rounded-xl px-md py-sm">
+          <MaterialCommunityIcons name="cash-plus" size={20} color="#22C55E" />
+          <Text className="text-xs text-text-secondary mt-xs">Monthly Income</Text>
+          <Text className="text-lg font-bold text-success">
+            {formatCurrency(summary.totalIncome)}
+          </Text>
         </View>
+        <View className="flex-1 bg-danger/10 rounded-xl px-md py-sm">
+          <MaterialCommunityIcons name="cash-minus" size={20} color="#EF4444" />
+          <Text className="text-xs text-text-secondary mt-xs">Expenses</Text>
+          <Text className="text-lg font-bold text-danger">
+            {formatCurrency(summary.totalExpense)}
+          </Text>
+        </View>
+        <View className="flex-1 bg-secondary/10 rounded-xl px-md py-sm">
+          <MaterialCommunityIcons name="target" size={20} color="#7C3AED" />
+          <Text className="text-xs text-text-secondary mt-xs">Savings Goal</Text>
+          <Text className="text-lg font-bold text-secondary">
+            {formatCurrency(savingsGoal)}
+          </Text>
+        </View>
+      </View>
 
-        {/* Category Breakdown */}
-        {summary.categoryBreakdown.length > 0 && (
-          <View className="mb-md">
-            <Text className="text-lg font-bold text-text mb-sm">Category Breakdown</Text>
-            {summary.categoryBreakdown.map((cat, index) => (
-              <CategoryBar key={`${cat.category}-${index}`} {...cat} />
-            ))}
+      {/* Monthly Spending Chart */}
+      <Card style={{ marginBottom: 16 }}>
+        <View className="flex-row items-center justify-between mb-sm">
+          <Text className="text-lg font-bold text-text">Monthly Spending</Text>
+          <MaterialCommunityIcons name="chart-bar" size={20} color="#64748B" />
+        </View>
+        <Text className="text-xs text-text-secondary mb-md">Jan - Jun</Text>
+        <MonthlySpendingChart data={summary.categoryBreakdown} />
+      </Card>
+
+      {/* Quick Actions */}
+      <View className="flex-row gap-sm mb-md">
+        <View className="flex-1">
+          <Button
+            title="Add Transaction"
+            icon="plus"
+            onPress={() => router.push('/transactions')}
+          />
+        </View>
+        <View className="flex-1">
+          <Button
+            title="Budgets"
+            variant="outline"
+            icon="wallet"
+            onPress={() => router.push('/budgets')}
+          />
+        </View>
+      </View>
+
+      {/* Recent Transactions */}
+      {summary.recentTransactions.length > 0 && (
+        <View className="mb-lg pb-8">
+          <View className="flex-row items-center justify-between mb-sm">
+            <Text className="text-lg font-bold text-text">Recent Transactions</Text>
+            <Pressable onPress={() => router.push('/transactions')}>
+              <Text className="text-sm font-semibold text-primary">See All</Text>
+            </Pressable>
           </View>
-        )}
-
-        {/* Recent Transactions */}
-        {summary.recentTransactions.length > 0 && (
-          <View className="mb-lg">
-            <View className="flex-row items-center justify-between mb-sm">
-              <Text className="text-lg font-bold text-text">Recent Transactions</Text>
-              <Button
-                title="View All"
-                variant="outline"
-                onPress={() => router.push('/transactions')}
-              />
+          {summary.recentTransactions.map((transaction) => (
+            <View key={transaction.id} className="mb-sm">
+              <TransactionRow transaction={transaction} />
             </View>
-            {summary.recentTransactions.map((transaction) => (
-              <View key={transaction.id} className="mb-sm">
-                <TransactionItem
-                  transaction={transaction}
-                  onEdit={() => {}}
-                  onDelete={() => {}}
-                />
-              </View>
-            ))}
-          </View>
-        )}
+          ))}
+        </View>
+      )}
 
-        {/* Empty State */}
-        {summary.totalIncome === 0 && summary.totalExpense === 0 && (
-          <View className="items-center py-xl">
-            <Text className="text-lg font-semibold text-text mb-sm">Welcome to Finance Tracker</Text>
-            <Text className="text-base text-text-secondary text-center mb-md px-lg">
-              Start tracking your finances by adding your first transaction.
-            </Text>
-            <Button
-              title="Add Transaction"
-              onPress={() => router.push('/transactions')}
-            />
-          </View>
-        )}
-      </ScrollView>
+      {/* Empty State */}
+      {summary.totalIncome === 0 && summary.totalExpense === 0 && (
+        <View className="items-center py-xl pb-8">
+          <MaterialCommunityIcons name="wallet-outline" size={48} color="#94A3B8" />
+          <Text className="text-lg font-semibold text-text mt-md mb-sm">Welcome to FinTrack</Text>
+          <Text className="text-base text-text-secondary text-center mb-md px-lg">
+            Start tracking your finances by adding your first transaction.
+          </Text>
+          <Button
+            title="Add Transaction"
+            icon="plus"
+            onPress={() => router.push('/transactions')}
+          />
+        </View>
+      )}
     </Screen>
   );
 }
 
-function CategoryBar({ category, type, total, count }: {
-  category: string;
-  type: 'income' | 'expense';
-  total: number;
-  count: number;
-}) {
-  const isIncome = type === 'income';
-  const color = isIncome ? 'bg-success' : 'bg-danger';
-  const barColor = isIncome ? 'bg-success/20' : 'bg-danger/20';
+function MonthlySpendingChart({ data }: { data: { category: string; total: number }[] }) {
+  const maxTotal = Math.max(...data.map((d) => d.total), 1);
 
   return (
-    <View className="mb-sm">
-      <View className="flex-row items-center justify-between mb-xs">
-        <Text className="text-sm text-text flex-1">{getCategoryEmoji(category)} {category}</Text>
-        <Text className={`text-sm font-semibold ${isIncome ? 'text-success' : 'text-danger'}`}>
-          {isIncome ? '+' : '-'}${total.toFixed(2)}
-        </Text>
-      </View>
-      <View className={`h-2 rounded-full ${barColor}`}>
-        <View
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${Math.min((total / 1000) * 100, 100)}%` }}
-        />
-      </View>
-      <Text className="text-xs text-text-secondary mt-xs">{count} transaction{count !== 1 ? 's' : ''}</Text>
+    <View className="flex-row items-end h-32 gap-sm">
+      {data.slice(0, 6).map((item, index) => {
+        const height = (item.total / maxTotal) * 100;
+        const colors = ['#2563EB', '#7C3AED', '#22C55E', '#F59E0B', '#EF4444', '#06B6D4'];
+        return (
+          <View key={index} className="flex-1 items-center">
+            <Text className="text-[10px] text-text-secondary mb-xs">
+              {formatCurrency(item.total).replace('.00', '')}
+            </Text>
+            <View
+              className="w-full rounded-t-sm"
+              style={{
+                height: `${Math.max(height, 4)}%`,
+                backgroundColor: colors[index % colors.length],
+              }}
+            />
+            <MaterialCommunityIcons
+              name={getCategoryIcon(item.category)}
+              size={14}
+              color={colors[index % colors.length]}
+              style={{ marginTop: 4 }}
+            />
+          </View>
+        );
+      })}
     </View>
   );
 }
 
-function getCategoryEmoji(category: string): string {
-  const emojiMap: Record<string, string> = {
-    'Food & Drinks': '🍔',
-    Transportation: '🚗',
-    Shopping: '🛍️',
-    Entertainment: '🎬',
-    'Bills & Utilities': '📄',
-    Housing: '🏠',
-    Health: '💊',
-    Education: '📚',
-    Salary: '💰',
-    Freelance: '💻',
-    Investment: '📈',
-  };
-  return emojiMap[category] || '💳';
+function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const isExpense = transaction.type === 'expense';
+  const amountColor = isExpense ? 'text-danger' : 'text-success';
+  const sign = isExpense ? '-' : '+';
+
+  return (
+    <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border">
+      <CategoryIcon category={transaction.category} size="sm" />
+      <View className="flex-1 ml-md">
+        <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+          {transaction.category}
+        </Text>
+        {transaction.description && (
+          <Text className="text-xs text-text-secondary mt-1" numberOfLines={1}>
+            {transaction.description}
+          </Text>
+        )}
+        <Text className="text-xs text-text-secondary mt-1">
+          {formatDate(transaction.date)}
+        </Text>
+      </View>
+      <Text className={`text-base font-bold ${amountColor}`}>
+        {sign}{formatCurrency(transaction.amount)}
+      </Text>
+    </View>
+  );
 }

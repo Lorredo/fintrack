@@ -8,8 +8,8 @@ type Budget struct {
 	Category  string    `json:"category"`
 	Amount    float64   `json:"amount"`
 	Month     string    `json:"month"`
-	Spent     float64   `json:"spent,omitempty"`
-	Remaining float64   `json:"remaining,omitempty"`
+	Spent     float64   `json:"spent"`
+	Remaining float64   `json:"remaining"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
