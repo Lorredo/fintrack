@@ -1,4 +1,5 @@
 import type { Transaction } from '@/features/transactions/types';
+import type { Budget } from '@/features/budgets/types';
 
 export interface CategorySummary {
   category: string;
@@ -13,4 +14,5 @@ export interface DashboardSummary {
   balance: number;
   recentTransactions: Transaction[];
   categoryBreakdown: CategorySummary[];
+  activeBudgets: Budget[];
 }

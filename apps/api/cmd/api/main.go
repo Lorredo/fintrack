@@ -16,6 +16,7 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/database"
 	"github.com/Lorredo/fintrack/api/internal/handlers"
 	"github.com/Lorredo/fintrack/api/internal/routes"
+	"github.com/Lorredo/fintrack/api/internal/services"
 )
 
 func main() {
@@ -53,10 +54,18 @@ func main() {
 		cfg.JWTAccessExpiry,
 		cfg.JWTRefreshExpiry,
 	)
-	transactionHandler := handlers.NewTransactionHandler()
-	dashboardHandler := handlers.NewDashboardHandler()
-	budgetHandler := handlers.NewBudgetHandler()
-	reportHandler := handlers.NewReportHandler()
+
+	transactionService := services.NewTransactionService(database.Pool)
+	transactionHandler := handlers.NewTransactionHandler(transactionService)
+
+	dashboardService := services.NewDashboardService(database.Pool)
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
+
+	budgetService := services.NewBudgetService(database.Pool)
+	budgetHandler := handlers.NewBudgetHandler(budgetService)
+
+	reportService := services.NewReportService(database.Pool)
+	reportHandler := handlers.NewReportHandler(reportService)
 
 	// Routes
 	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler)

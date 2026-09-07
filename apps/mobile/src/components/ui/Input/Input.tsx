@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   View,
   Text,
@@ -12,6 +13,8 @@ export default function Input({
   containerStyle,
   ...props
 }: InputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
     <View
       className="mb-md"
@@ -25,9 +28,22 @@ export default function Input({
 
       <TextInput
         {...props}
-        className={`border rounded-xl px-md py-[14px] text-body text-text bg-surface ${
-          error ? "border-danger" : "border-[#D1D5DB]"
+        className={`rounded-xl px-md py-[15px] text-body text-text bg-surface border-2 ${
+          error
+            ? "border-danger"
+            : isFocused
+            ? "border-primary"
+            : "border-border"
         }`}
+        placeholderTextColor="#9CA3AF"
+        onFocus={(e) => {
+          setIsFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setIsFocused(false);
+          props.onBlur?.(e);
+        }}
       />
 
       {error && (

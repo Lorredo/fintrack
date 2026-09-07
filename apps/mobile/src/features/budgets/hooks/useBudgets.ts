@@ -5,14 +5,14 @@ import type { CreateBudgetInput, UpdateBudgetInput } from '../types';
 
 export const BUDGET_KEYS = {
   all: ['budgets'] as const,
-  list: (month?: string) => [...BUDGET_KEYS.all, 'list', month] as const,
+  list: (date?: string) => [...BUDGET_KEYS.all, 'list', date] as const,
   detail: (id: string) => [...BUDGET_KEYS.all, 'detail', id] as const,
 };
 
-export function useBudgetList(month?: string) {
+export function useBudgetList(date?: string) {
   return useQuery({
-    queryKey: BUDGET_KEYS.list(month),
-    queryFn: () => BudgetApi.list(month),
+    queryKey: BUDGET_KEYS.list(date),
+    queryFn: () => BudgetApi.list(date),
   });
 }
 
@@ -31,7 +31,7 @@ export function useCreateBudget() {
   return useMutation({
     mutationFn: (input: CreateBudgetInput) => BudgetApi.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries();
     },
   });
 }
@@ -41,11 +41,8 @@ export function useUpdateBudget() {
 
   return useMutation({
     mutationFn: (input: UpdateBudgetInput) => BudgetApi.update(input),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
-      queryClient.invalidateQueries({
-        queryKey: BUDGET_KEYS.detail(variables.id),
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries();
     },
   });
 }
@@ -56,7 +53,18 @@ export function useDeleteBudget() {
   return useMutation({
     mutationFn: (id: string) => BudgetApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries();
+    },
+  });
+}
+export function useRebalanceBudget() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { fromBudgetId: string; toBudgetId: string; amount: number }) => 
+      BudgetApi.rebalance(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries();
     },
   });
 }

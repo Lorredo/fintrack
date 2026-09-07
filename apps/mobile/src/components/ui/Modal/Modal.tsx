@@ -3,6 +3,7 @@ import {
   Text,
   Pressable,
   Modal as RNModal,
+  ScrollView,
 } from 'react-native';
 
 import { ModalProps } from './Modal.types';
@@ -18,38 +19,46 @@ export default function Modal({
     <RNModal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType="slide"
       onRequestClose={onClose}
     >
       <Pressable
-        className="flex-1 bg-black/50 justify-center items-center px-xl"
+        className="flex-1 bg-black/40 justify-end"
         onPress={onClose}
       >
         <Pressable
-          className="bg-surface rounded-lg p-lg w-full max-w-[400px] shadow-lg"
+          className="bg-surface rounded-t-3xl px-lg pt-sm"
           style={[
             {
               shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 12,
-              elevation: 8,
+              shadowOffset: { width: 0, height: -4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 20,
+              elevation: 16,
+              paddingBottom: 36,
             },
             style,
           ]}
           onPress={(e) => e.stopPropagation()}
         >
-          {title && (
-            <View className="flex-row items-center justify-between mb-md">
-              <Text className="text-title font-semibold text-text">{title}</Text>
+          {/* Drag Handle */}
+          <View className="w-10 h-1 bg-border rounded-full self-center mb-md mt-sm" />
 
-              <Pressable className="p-1" onPress={onClose}>
-                <Text className="text-title text-text-secondary">✕</Text>
+          {title && (
+            <View className="flex-row items-center justify-between mb-lg">
+              <Text className="text-title font-bold text-text">{title}</Text>
+              <Pressable
+                className="w-8 h-8 rounded-full bg-surface-alt items-center justify-center"
+                onPress={onClose}
+              >
+                <Text className="text-text-secondary font-bold text-body">✕</Text>
               </Pressable>
             </View>
           )}
 
-          {children}
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+            {children}
+          </ScrollView>
         </Pressable>
       </Pressable>
     </RNModal>

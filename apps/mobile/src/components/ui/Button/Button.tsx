@@ -1,4 +1,4 @@
-import { Pressable, Text, ActivityIndicator } from "react-native";
+import { Pressable, Text, ActivityIndicator, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { ButtonProps } from "./Button.types";
@@ -6,8 +6,9 @@ import { ButtonProps } from "./Button.types";
 const variantClasses: Record<string, string> = {
   primary: "bg-primary",
   secondary: "bg-secondary",
-  outline: "border border-primary bg-transparent",
+  outline: "border-2 border-primary bg-transparent",
   danger: "bg-danger",
+  ghost: "bg-transparent",
 };
 
 const textClasses: Record<string, string> = {
@@ -15,6 +16,7 @@ const textClasses: Record<string, string> = {
   secondary: "text-white",
   outline: "text-primary",
   danger: "text-white",
+  ghost: "text-primary",
 };
 
 const spinnerColors: Record<string, string> = {
@@ -22,6 +24,15 @@ const spinnerColors: Record<string, string> = {
   secondary: "#fff",
   outline: "#2563EB",
   danger: "#fff",
+  ghost: "#2563EB",
+};
+
+const shadowStyle = {
+  shadowColor: "#2563EB",
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.2,
+  shadowRadius: 8,
+  elevation: 4,
 };
 
 export default function Button({
@@ -34,11 +45,13 @@ export default function Button({
   iconSize = 20,
   ...props
 }: ButtonProps) {
+  const isPrimary = variant === "primary";
+
   return (
     <Pressable
       disabled={disabled || loading}
-      className={`py-[14px] rounded-lg items-center justify-center flex-row gap-sm ${variantClasses[variant]}`}
-      style={style}
+      className={`py-[15px] rounded-xl items-center justify-center flex-row gap-sm active:opacity-75 ${variantClasses[variant]} ${disabled ? "opacity-50" : ""}`}
+      style={[isPrimary && !disabled ? shadowStyle : undefined, style]}
       {...props}
     >
       {loading ? (
@@ -49,7 +62,7 @@ export default function Button({
             <MaterialCommunityIcons
               name={icon}
               size={iconSize}
-              color={variant === "outline" ? "#2563EB" : "#fff"}
+              color={variant === "outline" || variant === "ghost" ? "#2563EB" : "#fff"}
             />
           )}
           {title && (

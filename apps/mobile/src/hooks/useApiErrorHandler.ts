@@ -24,7 +24,7 @@ export function useApiErrorHandler() {
       if (isNetworkError(error)) {
         toast.error('Network error. Please check your connection.');
       } else if (isUnauthorized(error)) {
-        toast.error('Session expired. Please log in again.');
+        toast.error(parsed.message);
       } else if (isNotFound(error)) {
         toast.error('The requested resource was not found.');
       } else {

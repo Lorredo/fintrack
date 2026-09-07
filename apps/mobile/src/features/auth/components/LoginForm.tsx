@@ -6,6 +6,7 @@ import { useLogin } from "../hooks/useLogin";
 import { useAppNavigation } from "@/shared/navigation/navigationHelpers";
 import { Button, Input, FormError } from "@/components/ui";
 import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
+import { getErrorMessage } from "@/shared/utils/apiErrors";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -64,7 +65,7 @@ export default function LoginForm() {
 )}
 
       {loginError && !validationError && (
-        <FormError message={loginError?.message} />
+        <FormError message={getErrorMessage(loginError)} />
       )}
 
       <Button

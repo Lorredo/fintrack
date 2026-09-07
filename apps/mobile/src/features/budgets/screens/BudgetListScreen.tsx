@@ -1,63 +1,45 @@
 import { useState, useCallback } from 'react';
 import { View, Text, FlatList, Alert, Pressable, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
-import { Screen, Loader, EmptyState, Button, Modal, Card, ProgressBar, CategoryIcon } from '@/components/ui';
+import { Screen, Loader, EmptyState, Button, ProgressBar, CategoryIcon } from '@/components/ui';
 import {
   useBudgetList,
-  useCreateBudget,
-  useUpdateBudget,
   useDeleteBudget,
 } from '../hooks/useBudgets';
-import BudgetForm from '../components/BudgetForm';
-import type { Budget, CreateBudgetInput, UpdateBudgetInput } from '../types';
-import { formatCurrency, formatMonth, getCategoryColor } from '@/shared/utils/categories';
+import { useUIStore } from '@/shared/store/ui.store';
+import type { Budget } from '../types';
+import { formatCurrency, getCategoryColor } from '@/shared/utils/categories';
 
 
 export default function BudgetListScreen() {
-  const [showForm, setShowForm] = useState(false);
-  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const router = useRouter();
+  const setEditingBudget = useUIStore((state) => state.setEditingBudget);
+  const setRebalancingBudget = useUIStore((state) => state.setRebalancingBudget);
 
-  const { data, isLoading, isError, refetch, isRefetching } = useBudgetList(currentMonth);
-  const createMutation = useCreateBudget();
-  const updateMutation = useUpdateBudget();
+  const [refreshing, setRefreshing] = useState(false);
+  const currentDate = new Date().toISOString().split('T')[0];
+
+  const { data, isLoading, isError, refetch, isRefetching } = useBudgetList(currentDate);
   const deleteMutation = useDeleteBudget();
 
   const budgets = data?.data ?? [];
-  const totalBudget = budgets.reduce((sum, b) => sum + (Number(b.amount) || 0), 0);
-  const totalSpent = budgets.reduce((sum, b) => sum + (Number(b.spent) || 0), 0);
-  const totalRemaining = totalBudget - totalSpent;
-  const totalPercent = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
 
-  const handleCreate = useCallback(
-    (input: CreateBudgetInput) => {
-      createMutation.mutate(input, {
-        onSuccess: () => {
-          setShowForm(false);
-        },
-        onError: () => {
-          Alert.alert('Error', 'Failed to create budget');
-        },
-      });
+  const handleEdit = useCallback(
+    (budget: Budget) => {
+      setEditingBudget(budget);
+      router.push('/budget-form');
     },
-    [createMutation],
+    [setEditingBudget, router],
   );
 
-  const handleUpdate = useCallback(
-    (input: UpdateBudgetInput) => {
-      updateMutation.mutate(input, {
-        onSuccess: () => {
-          setEditingBudget(null);
-          setShowForm(false);
-        },
-        onError: () => {
-          Alert.alert('Error', 'Failed to update budget');
-        },
-      });
+  const handleCoverIt = useCallback(
+    (budget: Budget) => {
+      setRebalancingBudget(budget);
+      router.push('/rebalance-form');
     },
-    [updateMutation],
+    [setRebalancingBudget, router],
   );
 
   const handleDelete = useCallback(
@@ -84,37 +66,16 @@ export default function BudgetListScreen() {
     [deleteMutation],
   );
 
-  const handleEdit = useCallback((budget: Budget) => {
-    setEditingBudget(budget);
-    setShowForm(true);
-  }, []);
-
   const handleAddNew = useCallback(() => {
     setEditingBudget(null);
-    setShowForm(true);
-  }, []);
-
-  const handleCloseForm = useCallback(() => {
-    setShowForm(false);
-    setEditingBudget(null);
-  }, []);
+    router.push('/budget-form');
+  }, [router, setEditingBudget]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
-
-  const handleSubmit = useCallback(
-    (data: CreateBudgetInput | UpdateBudgetInput) => {
-      if ('id' in data) {
-        handleUpdate(data as UpdateBudgetInput);
-      } else {
-        handleCreate(data as CreateBudgetInput);
-      }
-    },
-    [handleCreate, handleUpdate],
-  );
 
   if (isLoading) {
     return (
@@ -137,46 +98,14 @@ export default function BudgetListScreen() {
 
   return (
     <Screen>
-      <View className="flex-1">
+      <View style={{ flex: 1 }}>
         {/* Header */}
-        <View className="flex-row items-center justify-between mb-md">
-          <Text className="text-2xl font-bold text-text">Budgets</Text>
-          <Button
-            icon="plus"
-            onPress={handleAddNew}
-            style={{ width: 44, height: 44, paddingHorizontal: 5}}
-          />
+        <View style={{ paddingTop: 16, paddingBottom: 12 }}>
+          <Text style={{ fontSize: 26, fontWeight: '700', color: '#111827', letterSpacing: -0.5 }}>Budgets</Text>
+          <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+            Active Budgets as of {new Date(currentDate).toLocaleDateString()}
+          </Text>
         </View>
-
-        <Text className="text-sm text-text-secondary mb-md">
-          Monthly budgets for {formatMonth(currentMonth)}
-        </Text>
-
-        {/* Total Budget Overview */}
-        {budgets.length > 0 && (
-          <Card style={{ marginBottom: 16 }}>
-            <View className="flex-row items-center justify-between mb-xs">
-              <Text className="text-sm text-text-secondary">Monthly Spending Limit</Text>
-              <MaterialCommunityIcons name="wallet-outline" size={20} color="#64748B" />
-            </View>
-            <View className="flex-row items-baseline gap-xs mb-sm">
-              <Text className="text-2xl font-bold text-text">
-                {formatCurrency(totalSpent)}
-              </Text>
-              <Text className="text-base text-text-secondary">
-                / {formatCurrency(totalBudget)}
-              </Text>
-            </View>
-
-            <ProgressBar progress={totalPercent} height={10} />
-
-            <Text className={`text-sm font-semibold mt-sm ${totalRemaining >= 0 ? 'text-success' : 'text-danger'}`}>
-              {totalRemaining >= 0
-                ? `${formatCurrency(totalRemaining)} left of your total budget`
-                : `${formatCurrency(Math.abs(totalRemaining))} over budget`}
-            </Text>
-          </Card>
-        )}
 
         {/* Budget list */}
         {budgets.length === 0 ? (
@@ -194,30 +123,41 @@ export default function BudgetListScreen() {
                 budget={item}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onCoverIt={handleCoverIt}
               />
             )}
-            contentContainerClassName="gap-sm pb-lg"
+            contentContainerStyle={{ gap: 10, paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} />
+              <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} tintColor="#2563EB" />
             }
           />
         )}
       </View>
 
-      {/* Add/Edit Modal */}
-      <Modal
-        visible={showForm}
-        onClose={handleCloseForm}
-        title={editingBudget ? 'Edit Budget' : 'Add Budget'}
+      {/* Floating Action Button */}
+      <Pressable
+        onPress={handleAddNew}
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 0,
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#2563EB',
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#2563EB',
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.4,
+          shadowRadius: 12,
+          elevation: 8,
+        }}
       >
-        <BudgetForm
-          budget={editingBudget}
-          onSubmit={handleSubmit}
-          onCancel={handleCloseForm}
-          loading={createMutation.isPending || updateMutation.isPending}
-        />
-      </Modal>
+        <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+      </Pressable>
+
     </Screen>
   );
 }
@@ -226,10 +166,12 @@ function BudgetCard({
   budget,
   onEdit,
   onDelete,
+  onCoverIt,
 }: {
   budget: Budget;
   onEdit: (budget: Budget) => void;
   onDelete: (id: string) => void;
+  onCoverIt?: (budget: Budget) => void;
 }) {
   const spent = Number(budget.spent) || 0;
   const amount = Number(budget.amount) || 0;
@@ -242,52 +184,83 @@ function BudgetCard({
   const color = getCategoryColor(budget.category);
 
   return (
-    <Card>
-      <View className="flex-row items-center justify-between mb-sm">
-        <View className="flex-row items-center gap-sm">
+    <View
+      style={{
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 18,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <CategoryIcon category={budget.category} size="sm" />
-          <Text className="text-base font-semibold text-text">
+          <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827' }}>
             {budget.category}
           </Text>
         </View>
-        {isNearLimit && (
-          <View className="flex-row items-center bg-warning/20 px-sm py-xs rounded-full gap-xs">
-            <MaterialCommunityIcons name="alert" size={12} color="#F59E0B" />
-            <Text className="text-xs font-semibold text-warning">Near Limit</Text>
-          </View>
-        )}
-        {isOverBudget && (
-          <View className="flex-row items-center bg-danger/20 px-sm py-xs rounded-full gap-xs">
-            <MaterialCommunityIcons name="alert-octagon" size={12} color="#EF4444" />
-            <Text className="text-xs font-semibold text-danger">Over Budget</Text>
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {isNearLimit && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, gap: 3 }}>
+              <MaterialCommunityIcons name="alert" size={11} color="#F59E0B" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#F59E0B' }}>Near Limit</Text>
+            </View>
+          )}
+          {isOverBudget && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, gap: 3 }}>
+              <MaterialCommunityIcons name="alert-octagon" size={11} color="#EF4444" />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#EF4444' }}>Over</Text>
+            </View>
+          )}
+        </View>
       </View>
 
-      <View className="flex-row items-baseline gap-xs mb-sm">
-        <Text className="text-lg font-bold text-text">
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 10 }}>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>
           {formatCurrency(budget.spent)}
         </Text>
-        <Text className="text-sm text-text-secondary">
+        <Text style={{ fontSize: 13, color: '#9CA3AF' }}>
           / {formatCurrency(budget.amount)}
+        </Text>
+        <Text style={{ fontSize: 11, color: '#9CA3AF', marginLeft: 'auto', textTransform: 'capitalize' }}>
+          {budget.periodType}: {new Date(budget.startDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})} - {new Date(budget.endDate).toLocaleDateString(undefined, {month:'short', day:'numeric'})}
         </Text>
       </View>
 
       <ProgressBar progress={percentUsed} color={color} height={8} />
 
-      <View className="flex-row justify-between mt-sm">
-        <Text className="text-xs text-text-secondary">
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+        <Text style={{ fontSize: 12, color: '#9CA3AF' }}>
           {percentUsed.toFixed(0)}% used
         </Text>
-        <View className="flex-row gap-xs">
-          <Pressable onPress={() => onEdit(budget)} className="p-xs">
-            <MaterialCommunityIcons name="pencil" size={16} color="#2563EB" />
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {isOverBudget && onCoverIt && (
+            <Pressable
+              onPress={() => onCoverIt(budget)}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#EF4444' }}
+            >
+              <MaterialCommunityIcons name="shield-half-full" size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', marginLeft: 4 }}>Cover It</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={() => onEdit(budget)}
+            style={{ padding: 6, borderRadius: 8, backgroundColor: '#EFF6FF' }}
+          >
+            <MaterialCommunityIcons name="pencil" size={14} color="#2563EB" />
           </Pressable>
-          <Pressable onPress={() => onDelete(budget.id)} className="p-xs">
-            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+          <Pressable
+            onPress={() => onDelete(budget.id)}
+            style={{ padding: 6, borderRadius: 8, backgroundColor: '#FEF2F2' }}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#EF4444" />
           </Pressable>
         </View>
       </View>
-    </Card>
+    </View>
   );
 }

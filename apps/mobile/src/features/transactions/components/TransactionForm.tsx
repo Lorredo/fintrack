@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Input, Button } from '@/components/ui';
 import type { Transaction, CreateTransactionInput, UpdateTransactionInput, TransactionType } from '../types';
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
+  initialType?: TransactionType;
   onSubmit: (data: CreateTransactionInput | UpdateTransactionInput) => void;
   onCancel: () => void;
   loading?: boolean;
@@ -36,12 +38,13 @@ const INCOME_CATEGORIES = [
 
 export default function TransactionForm({
   transaction,
+  initialType = 'expense',
   onSubmit,
   onCancel,
   loading,
 }: TransactionFormProps) {
   const [type, setType] = useState<TransactionType>(
-    transaction?.type || 'expense',
+    transaction?.type || initialType,
   );
   const [amount, setAmount] = useState(
     transaction ? String(transaction.amount) : '',
@@ -53,6 +56,7 @@ export default function TransactionForm({
   const [date, setDate] = useState(
     transaction?.date || new Date().toISOString().split('T')[0],
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
@@ -179,13 +183,34 @@ export default function TransactionForm({
       </View>
 
       {/* Date */}
-      <Input
-        label="Date"
-        placeholder="YYYY-MM-DD"
-        value={date}
-        onChangeText={setDate}
-        error={errors.date}
-      />
+      <View className="mb-md">
+        <Text className="mb-[6px] text-caption font-semibold text-text">Date</Text>
+        <Pressable 
+          onPress={() => setShowDatePicker(true)}
+          className={`rounded-xl px-md py-[15px] bg-surface border-2 ${
+            errors.date ? 'border-danger' : 'border-border'
+          }`}
+        >
+          <Text className="text-body text-text">{date}</Text>
+        </Pressable>
+        {errors.date && (
+          <Text className="text-danger mt-1 text-small">{errors.date}</Text>
+        )}
+      </View>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={new Date(date)}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(Platform.OS === 'ios');
+            if (selectedDate) {
+              setDate(selectedDate.toISOString().split('T')[0]);
+            }
+          }}
+        />
+      )}
 
       {/* Description */}
       <Input

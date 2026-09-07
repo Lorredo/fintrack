@@ -1,19 +1,21 @@
 import { useState, useCallback, useMemo } from 'react';
 import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
-import { Screen, Loader, EmptyState, Button, Modal, CategoryIcon } from '@/components/ui';
-import { useTransactionList, useDeleteTransaction, useCreateTransaction, useUpdateTransaction } from '../hooks/useTransactions';
-import TransactionForm from '../components/TransactionForm';
-import type { Transaction, CreateTransactionInput, UpdateTransactionInput } from '../types';
+import { Screen, Loader, EmptyState, Button, CategoryIcon, ExpandableFAB } from '@/components/ui';
+import { useTransactionList, useDeleteTransaction } from '../hooks/useTransactions';
+import { useUIStore } from '@/shared/store/ui.store';
+import type { Transaction } from '../types';
 import { formatCurrency, formatDate } from '@/shared/utils/categories';
 
 type FilterTab = 'all' | 'income' | 'expense';
 
 export default function TransactionListScreen() {
+  const router = useRouter();
+  const setEditingTransaction = useUIStore((state) => state.setEditingTransaction);
+
   const [page, setPage] = useState(1);
-  const [showForm, setShowForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -21,115 +23,44 @@ export default function TransactionListScreen() {
   const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
     page,
     limit: 20,
-    type: activeFilter === 'all' ? '' : activeFilter,
+    type: activeFilter === 'all' ? undefined : activeFilter,
   });
-  const createMutation = useCreateTransaction();
-  const updateMutation = useUpdateTransaction();
+
   const deleteMutation = useDeleteTransaction();
 
-  const transactions = useMemo(() => {
-    const list = data?.data ?? [];
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter(
-      (t) =>
-        t.category.toLowerCase().includes(q) ||
-        (t.description?.toLowerCase().includes(q) ?? false),
-    );
-  }, [data?.data, search]);
+  const transactions = useMemo(() => data?.data || [], [data]);
+  const totalPages = data?.totalPages || 1;
 
-  const totalPages = data?.totalPages ?? 1;
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
-  const handleCreate = useCallback(
-    (input: CreateTransactionInput) => {
-      createMutation.mutate(input, {
-        onSuccess: () => {
-          setShowForm(false);
-          setPage(1);
-        },
-        onError: () => {
-          Alert.alert('Error', 'Failed to create transaction');
-        },
-      });
+  const handleEdit = useCallback(
+    (transaction: Transaction) => {
+      setEditingTransaction(transaction);
+      router.push('/transaction-form');
     },
-    [createMutation],
-  );
-
-  const handleUpdate = useCallback(
-    (input: UpdateTransactionInput) => {
-      updateMutation.mutate(input, {
-        onSuccess: () => {
-          setEditingTransaction(null);
-          setShowForm(false);
-        },
-        onError: () => {
-          Alert.alert('Error', 'Failed to update transaction');
-        },
-      });
-    },
-    [updateMutation],
+    [setEditingTransaction, router]
   );
 
   const handleDelete = useCallback(
     (id: string) => {
-      Alert.alert(
-        'Delete Transaction',
-        'Are you sure you want to delete this transaction?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              deleteMutation.mutate(id, {
-                onError: () => {
-                  Alert.alert('Error', 'Failed to delete transaction');
-                },
-              });
-            },
-          },
-        ],
-      );
+      Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
+      ]);
     },
-    [deleteMutation],
+    [deleteMutation]
   );
 
-  const handleEdit = useCallback((transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    setShowForm(true);
-  }, []);
 
-  const handleAddNew = useCallback(() => {
-    setEditingTransaction(null);
-    setShowForm(true);
-  }, []);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setPage(1);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
-  const handleCloseForm = useCallback(() => {
-    setShowForm(false);
-    setEditingTransaction(null);
-  }, []);
-
-  const handleSubmit = useCallback(
-    (data: CreateTransactionInput | UpdateTransactionInput) => {
-      if ('id' in data) {
-        handleUpdate(data as UpdateTransactionInput);
-      } else {
-        handleCreate(data as CreateTransactionInput);
-      }
-    },
-    [handleCreate, handleUpdate],
-  );
-
-  const filterTabs: { key: FilterTab; label: string; icon: 'view-list' | 'cash-plus' | 'cash-minus' }[] = [
-    { key: 'all', label: 'All', icon: 'view-list' },
-    { key: 'income', label: 'Income', icon: 'cash-plus' },
-    { key: 'expense', label: 'Expense', icon: 'cash-minus' },
+  const filterTabs: { key: FilterTab; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'income', label: 'Income' },
+    { key: 'expense', label: 'Expense' },
   ];
 
   if (isLoading) {
@@ -153,59 +84,71 @@ export default function TransactionListScreen() {
 
   return (
     <Screen>
-      <View className="flex-1">
+      <View style={{ flex: 1 }}>
         {/* Header */}
-        <View className="flex-row items-center justify-between mb-md">
-          <Text className="text-2xl font-bold text-text">Transactions</Text>
-          <Button
-            icon="plus"
-            onPress={handleAddNew}
-            style={{ width: 44, height: 44, paddingHorizontal: 5}}
-          />
+        <View style={{ paddingTop: 16, paddingBottom: 12 }}>
+          <Text style={{ fontSize: 26, fontWeight: '700', color: '#111827', letterSpacing: -0.5 }}>Transactions</Text>
         </View>
 
         {/* Search Bar */}
-        <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border mb-sm">
-          <MaterialCommunityIcons name="magnify" size={20} color="#94A3B8" />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            marginBottom: 12,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.06,
+            shadowRadius: 6,
+            elevation: 2,
+          }}
+        >
+          <MaterialCommunityIcons name="magnify" size={20} color="#9CA3AF" />
           <TextInput
-            className="flex-1 text-body text-text ml-sm"
-            placeholder="Search transactions, categories..."
-            placeholderTextColor="#94A3B8"
+            style={{ flex: 1, fontSize: 15, color: '#111827', marginLeft: 10 }}
+            placeholder="Search transactions..."
+            placeholderTextColor="#9CA3AF"
             value={search}
             onChangeText={setSearch}
             autoCapitalize="none"
           />
           {search.length > 0 && (
             <Pressable onPress={() => setSearch('')}>
-              <MaterialCommunityIcons name="close-circle" size={20} color="#94A3B8" />
+              <MaterialCommunityIcons name="close-circle" size={18} color="#D1D5DB" />
             </Pressable>
           )}
         </View>
 
         {/* Filter Tabs */}
-        <View className="flex-row gap-sm mb-md">
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
           {filterTabs.map((tab) => {
             const isActive = activeFilter === tab.key;
             return (
               <Pressable
                 key={tab.key}
-                className={`flex-row items-center px-md py-sm rounded-full gap-xs ${
-                  isActive ? 'bg-primary' : 'bg-surface border border-border'
-                }`}
+                style={{
+                  paddingHorizontal: 18,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  backgroundColor: isActive ? '#2563EB' : '#fff',
+                  borderWidth: isActive ? 0 : 1.5,
+                  borderColor: '#EDF0F5',
+                }}
                 onPress={() => {
                   setActiveFilter(tab.key);
                   setPage(1);
                 }}
               >
-                <MaterialCommunityIcons
-                  name={tab.icon}
-                  size={16}
-                  color={isActive ? '#fff' : '#64748B'}
-                />
                 <Text
-                  className={`text-sm font-semibold ${
-                    isActive ? 'text-white' : 'text-text-secondary'
-                  }`}
+                  style={{
+                    fontSize: 13,
+                    fontWeight: '600',
+                    color: isActive ? '#fff' : '#6B7280',
+                  }}
                 >
                   {tab.label}
                 </Text>
@@ -223,7 +166,7 @@ export default function TransactionListScreen() {
                 ? `No transactions match "${search}"`
                 : 'Start tracking your finances by adding your first transaction.'
             }
-            action={<Button title="Add Transaction" icon="plus" onPress={handleAddNew} />}
+        
           />
         ) : (
           <FlatList
@@ -236,10 +179,10 @@ export default function TransactionListScreen() {
                 onDelete={handleDelete}
               />
             )}
-            contentContainerClassName="gap-sm pb-lg"
+            contentContainerStyle={{ gap: 8, paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
             refreshControl={
-              <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} />
+              <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} tintColor="#2563EB" />
             }
             onEndReached={() => {
               if (page < totalPages) {
@@ -254,19 +197,57 @@ export default function TransactionListScreen() {
         )}
       </View>
 
-      {/* Add/Edit Modal */}
-      <Modal
-        visible={showForm}
-        onClose={handleCloseForm}
-        title={editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-      >
-        <TransactionForm
-          transaction={editingTransaction}
-          onSubmit={handleSubmit}
-          onCancel={handleCloseForm}
-          loading={createMutation.isPending || updateMutation.isPending}
+      {/* Floating Action Button */}
+      {activeFilter === 'all' ? (
+        <ExpandableFAB
+          actions={[
+            {
+              icon: 'arrow-up-circle',
+              label: 'Add Expense',
+              color: '#EF4444',
+              onPress: () => {
+                setEditingTransaction(null);
+                router.push({ pathname: '/transaction-form', params: { type: 'expense' } });
+              }
+            },
+            {
+              icon: 'arrow-down-circle',
+              label: 'Add Income',
+              color: '#22C55E',
+              onPress: () => {
+                setEditingTransaction(null);
+                router.push({ pathname: '/transaction-form', params: { type: 'income' } });
+              }
+            }
+          ]}
         />
-      </Modal>
+      ) : (
+        <Pressable
+          onPress={() => {
+            setEditingTransaction(null);
+            router.push({ pathname: '/transaction-form', params: { type: activeFilter } });
+          }}
+          style={{
+            position: 'absolute',
+            bottom: 24,
+            right: 0,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: '#2563EB',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#2563EB',
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 8,
+          }}
+        >
+          <MaterialCommunityIcons name="plus" size={28} color="#fff" />
+        </Pressable>
+      )}
+
     </Screen>
   );
 }
@@ -281,35 +262,52 @@ function TransactionRow({
   onDelete: (id: string) => void;
 }) {
   const isExpense = transaction.type === 'expense';
-  const amountColor = isExpense ? 'text-danger' : 'text-success';
-  const sign = isExpense ? '-' : '+';
 
   return (
-    <View className="flex-row items-center bg-surface rounded-xl px-md py-sm border border-border">
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
+      }}
+    >
       <CategoryIcon category={transaction.category} size="sm" />
-      <View className="flex-1 ml-md">
-        <Text className="text-sm font-semibold text-text" numberOfLines={1}>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
           {transaction.category}
         </Text>
         {transaction.description && (
-          <Text className="text-xs text-text-secondary mt-1" numberOfLines={1}>
+          <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
             {transaction.description}
           </Text>
         )}
-        <Text className="text-xs text-text-secondary mt-1">
+        <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
           {formatDate(transaction.date)}
         </Text>
       </View>
-      <View className="items-end ml-sm">
-        <Text className={`text-base font-bold ${amountColor}`}>
-          {sign}{formatCurrency(transaction.amount)}
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={{ fontSize: 15, fontWeight: '700', color: isExpense ? '#EF4444' : '#22C55E' }}>
+          {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
         </Text>
-        <View className="flex-row gap-sm mt-xs">
-          <Pressable onPress={() => onEdit(transaction)} className="p-xs">
-            <MaterialCommunityIcons name="pencil" size={16} color="#2563EB" />
+        <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
+          <Pressable
+            onPress={() => onEdit(transaction)}
+            style={{ padding: 4, borderRadius: 6, backgroundColor: '#EFF6FF' }}
+          >
+            <MaterialCommunityIcons name="pencil" size={14} color="#2563EB" />
           </Pressable>
-          <Pressable onPress={() => onDelete(transaction.id)} className="p-xs">
-            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#EF4444" />
+          <Pressable
+            onPress={() => onDelete(transaction.id)}
+            style={{ padding: 4, borderRadius: 6, backgroundColor: '#FEF2F2' }}
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#EF4444" />
           </Pressable>
         </View>
       </View>

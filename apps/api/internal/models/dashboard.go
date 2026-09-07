@@ -6,6 +6,7 @@ type DashboardSummary struct {
 	Balance            float64           `json:"balance"`
 	RecentTransactions []Transaction     `json:"recentTransactions"`
 	CategoryBreakdown  []CategorySummary `json:"categoryBreakdown"`
+	ActiveBudgets      []Budget          `json:"activeBudgets"`
 }
 
 type CategorySummary struct {

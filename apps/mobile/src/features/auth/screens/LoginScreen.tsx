@@ -1,12 +1,13 @@
 import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { loginSchema } from '../validation/login.schema';
 import { useLogin } from '../hooks/useLogin';
 import { Button, Input, FormError } from '@/components/ui';
-import { useApiErrorHandler } from '@/hooks/useApiErrorHandler';
 import { useToast } from '@/features/toast/hooks/useToast';
+import { getErrorMessage } from '@/shared/utils/apiErrors';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -14,7 +15,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [validationError, setValidationError] = useState('');
 
-  const { handleError } = useApiErrorHandler();
   const toast = useToast();
 
   const {
@@ -36,7 +36,7 @@ export default function LoginScreen() {
       await loginAsync({ email, password });
       router.replace('/');
     } catch (error) {
-      handleError(error);
+      // Error displayed inline via loginError state
     }
   }
 
@@ -46,28 +46,60 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-background"
+      style={{ flex: 1, backgroundColor: '#F5F7FA' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        className="flex-1"
-        contentContainerClassName="flex-grow justify-center px-lg py-xl"
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View className="items-center mb-xl">
-          <View className="w-20 h-20 rounded-2xl bg-primary items-center justify-center mb-md shadow-lg">
-            <Text className="text-4xl font-bold text-white">F</Text>
+        {/* Branding */}
+        <View style={{ alignItems: 'center', marginBottom: 40 }}>
+          <View
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: 20,
+              backgroundColor: '#2563EB',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 16,
+              shadowColor: '#2563EB',
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.35,
+              shadowRadius: 16,
+              elevation: 8,
+            }}
+          >
+            <MaterialCommunityIcons name="wallet" size={36} color="#fff" />
           </View>
-          <Text className="text-3xl font-bold text-text">FinTrack</Text>
-          <Text className="text-base text-text-secondary mt-sm text-center">
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#111827', letterSpacing: -0.5 }}>
+            FinTrack
+          </Text>
+          <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 6, textAlign: 'center' }}>
             Your smart personal finance companion
           </Text>
         </View>
 
-        {/* Form */}
-        <View className="gap-md">
+        {/* Form Card */}
+        <View
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 24,
+            padding: 24,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.06,
+            shadowRadius: 12,
+            elevation: 3,
+          }}
+        >
+          <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 20 }}>
+            Welcome back
+          </Text>
+
           <Input
             label="Email Address"
             value={email}
@@ -87,10 +119,10 @@ export default function LoginScreen() {
               secureTextEntry
             />
             <Pressable
-              className="self-end -mt-sm"
+              style={{ alignSelf: 'flex-end', marginTop: -10, marginBottom: 16 }}
               onPress={() => router.push('/forgot-password')}
             >
-              <Text className="text-sm font-semibold text-primary">
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563EB' }}>
                 Forgot Password?
               </Text>
             </Pressable>
@@ -98,7 +130,7 @@ export default function LoginScreen() {
 
           {Boolean(validationError) && <FormError message={validationError} />}
           {loginError && !validationError && (
-            <FormError message={loginError?.message} />
+            <FormError message={getErrorMessage(loginError)} />
           )}
 
           <Button
@@ -107,20 +139,41 @@ export default function LoginScreen() {
             loading={loading}
           />
 
-          <Button
-            title="Log In with Biometrics"
-            variant="outline"
+          {/* Divider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#EDF0F5' }} />
+            <Text style={{ marginHorizontal: 12, color: '#9CA3AF', fontSize: 13 }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: '#EDF0F5' }} />
+          </View>
+
+          {/* Biometrics */}
+          <Pressable
             onPress={handleBiometrics}
-          />
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#EDF0F5',
+              borderRadius: 14,
+              paddingVertical: 14,
+              gap: 10,
+            }}
+          >
+            <MaterialCommunityIcons name="fingerprint" size={22} color="#6B7280" />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#6B7280' }}>
+              Log In with Biometrics
+            </Text>
+          </Pressable>
         </View>
 
         {/* Register link */}
-        <View className="flex-row items-center justify-center mt-xl">
-          <Text className="text-base text-text-secondary">
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 28 }}>
+          <Text style={{ fontSize: 15, color: '#6B7280' }}>
             {`Don't have an account? `}
           </Text>
           <Pressable onPress={() => router.push('/register')}>
-            <Text className="text-base font-bold text-primary">Register</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#2563EB' }}>Register</Text>
           </Pressable>
         </View>
       </ScrollView>

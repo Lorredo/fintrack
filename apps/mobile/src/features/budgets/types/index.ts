@@ -3,7 +3,9 @@ export interface Budget {
   userId: string;
   category: string;
   amount: number;
-  month: string;
+  periodType: string;
+  startDate: string;
+  endDate: string;
   spent: number;
   remaining: number;
   createdAt: string;
@@ -13,14 +15,18 @@ export interface Budget {
 export interface CreateBudgetInput {
   category: string;
   amount: number;
-  month: string;
+  periodType: string;
+  startDate: string;
+  endDate: string;
 }
 
 export interface UpdateBudgetInput {
   id: string;
   category?: string;
   amount?: number;
-  month?: string;
+  periodType?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface BudgetResponse {

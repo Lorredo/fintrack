@@ -42,6 +42,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 
 	// Budget routes (protected)
 	budgets := api.Group("/budgets", middleware.AuthRequired())
+	budgets.Post("/rebalance", budgetHandler.Rebalance)
 	budgets.Get("/", budgetHandler.List)
 	budgets.Get("/:id", budgetHandler.Get)
 	budgets.Post("/", budgetHandler.Create)

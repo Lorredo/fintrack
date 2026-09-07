@@ -1,29 +1,33 @@
 import AuthGuard from "@/shared/navigation/AuthGuard";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View } from "react-native";
 
 export default function AppLayout() {
   return (
     <AuthGuard>
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#f1f2f4ff' }}>
+      <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
         <Tabs
           screenOptions={{
             headerShown: false,
             tabBarActiveTintColor: "#2563EB",
-            tabBarInactiveTintColor: "#94A3B8",
+            tabBarInactiveTintColor: "#9CA3AF",
             tabBarStyle: {
               backgroundColor: "#FFFFFF",
-              borderTopColor: "#E2E8F0",
-              borderTopWidth: 1,
-              height: 80,
-              paddingBottom: 20,
-              paddingTop: 12,
+              borderTopWidth: 0,
+              height: 72,
+              paddingBottom: 14,
+              paddingTop: 10,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.06,
+              shadowRadius: 12,
+              elevation: 8,
             },
             tabBarLabelStyle: {
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: "600",
-              marginTop: 4,
+              marginTop: 2,
             },
           }}
         >
@@ -35,17 +39,18 @@ export default function AppLayout() {
             }}
           />
           
-          {/* Dashboard from the dashboard folder */}
           <Tabs.Screen
             name="dashboard"
             options={{
               title: "Dashboard",
               tabBarIcon: ({ color, focused }) => (
-                <MaterialCommunityIcons
-                  name={focused ? "view-dashboard" : "view-dashboard-outline"}
-                  size={24}
-                  color={color}
-                />
+                <View style={focused ? { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 4 } : { padding: 4 }}>
+                  <MaterialCommunityIcons
+                    name={focused ? "view-dashboard" : "view-dashboard-outline"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
               ),
             }}
           />
@@ -55,55 +60,66 @@ export default function AppLayout() {
             options={{
               title: "Transactions",
               tabBarIcon: ({ color, focused }) => (
-                <MaterialCommunityIcons
-                  name={focused ? "credit-card" : "credit-card-outline"}
-                  size={22}
-                  color={color}
-                />
+                <View style={focused ? { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 4 } : { padding: 4 }}>
+                  <MaterialCommunityIcons
+                    name={focused ? "swap-horizontal-bold" : "swap-horizontal"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
               ),
             }}
           />
+
           <Tabs.Screen
             name="budgets"
             options={{
-              title: "Budget",
+              title: "Budgets",
               tabBarIcon: ({ color, focused }) => (
-                <MaterialCommunityIcons
-                  name={focused ? "wallet" : "wallet-outline"}
-                  size={22}
-                  color={color}
-                />
+                <View style={focused ? { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 4 } : { padding: 4 }}>
+                  <MaterialCommunityIcons
+                    name={focused ? "wallet" : "wallet-outline"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
               ),
             }}
           />
+
           <Tabs.Screen
             name="reports"
             options={{
               title: "Reports",
               tabBarIcon: ({ color, focused }) => (
-                <MaterialCommunityIcons
-                  name={focused ? "chart-bar" : "chart-bar"}
-                  size={22}
-                  color={color}
-                />
+                <View style={focused ? { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 4 } : { padding: 4 }}>
+                  <MaterialCommunityIcons
+                    name={focused ? "chart-bar" : "chart-bar-stacked"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
               ),
             }}
           />
+
           <Tabs.Screen
-            name="more"
+            name="me"
             options={{
-              title: "More",
+              title: "Me",
               tabBarIcon: ({ color, focused }) => (
-                <MaterialCommunityIcons
-                  name={focused ? "dots-horizontal-circle" : "dots-horizontal-circle-outline"}
-                  size={22}
-                  color={color}
-                />
+                <View style={focused ? { backgroundColor: '#EFF6FF', borderRadius: 10, padding: 4 } : { padding: 4 }}>
+                  <MaterialCommunityIcons
+                    name={focused ? "account" : "account-outline"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
               ),
             }}
           />
         </Tabs>
-      </SafeAreaView>
+      </View>
     </AuthGuard>
   );
 }

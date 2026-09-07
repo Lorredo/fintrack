@@ -11,7 +11,6 @@ export interface ProgressBarProps {
 export default function ProgressBar({
   progress,
   color,
-  trackColor = 'bg-border/30',
   height = 8,
 }: ProgressBarProps) {
   const safeProgress = Number.isFinite(progress) ? progress : 0;
@@ -27,8 +26,8 @@ export default function ProgressBar({
 
   return (
     <View
-      className={`w-full rounded-full overflow-hidden ${trackColor}`}
-      style={{ height }}
+      className="w-full rounded-full overflow-hidden"
+      style={{ height, backgroundColor: '#EDF0F5' }}
     >
       <View
         className="h-full rounded-full"

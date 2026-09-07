@@ -18,3 +18,4 @@ export * from './SegmentedControl';
 export * from './SubmitButton';
 export * from './TextField';
 export * from './Toast';
+export * from './ExpandableFAB';

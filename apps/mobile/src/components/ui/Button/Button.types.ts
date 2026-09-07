@@ -19,7 +19,8 @@ export interface ButtonProps
     | "primary"
     | "secondary"
     | "outline"
-    | "danger";
+    | "danger"
+    | "ghost";
 
   icon?: IconName;
 

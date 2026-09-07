@@ -9,10 +9,10 @@ import type {
 } from '../types';
 
 export const BudgetApi = {
-  async list(month?: string): Promise<BudgetListResponse> {
+  async list(date?: string): Promise<BudgetListResponse> {
     const { data } = await api.get<BudgetListResponse>(
       API_ENDPOINTS.BUDGETS.LIST,
-      { params: month ? { month } : undefined },
+      { params: date ? { date } : undefined },
     );
     return data;
   },
@@ -45,6 +45,11 @@ export const BudgetApi = {
     const { data } = await api.delete<BudgetResponse>(
       API_ENDPOINTS.BUDGETS.DELETE(id),
     );
+    return data;
+  },
+
+  async rebalance(payload: { fromBudgetId: string; toBudgetId: string; amount: number }): Promise<{ message: string }> {
+    const { data } = await api.post<{ message: string }>('/api/v1/budgets/rebalance', payload);
     return data;
   },
 };

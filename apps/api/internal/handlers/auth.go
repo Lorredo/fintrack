@@ -13,6 +13,7 @@ import (
 
 	"github.com/Lorredo/fintrack/api/internal/database"
 	"github.com/Lorredo/fintrack/api/internal/models"
+	"github.com/Lorredo/fintrack/api/internal/validator"
 )
 
 type AuthHandler struct {
@@ -37,15 +38,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.FirstName == "" || req.LastName == "" || req.Email == "" || req.Password == "" {
+	if errs := validator.ValidateStruct(req); errs != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "All fields are required",
-		})
-	}
-
-	if len(req.Password) < 8 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Password must be at least 8 characters",
+			"message": "Validation failed",
+			"errors":  errs,
 		})
 	}
 
@@ -87,6 +83,13 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "Invalid request body",
+		})
+	}
+
+	if errs := validator.ValidateStruct(req); errs != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Validation failed",
+			"errors":  errs,
 		})
 	}
 
@@ -180,8 +183,16 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		})
 	}
 
+	newRefreshToken, err := h.generateToken(userID, h.jwtRefreshExpiry)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to generate refresh token",
+		})
+	}
+
 	return c.JSON(models.RefreshTokenResponse{
-		AccessToken: accessToken,
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
 	})
 }
 

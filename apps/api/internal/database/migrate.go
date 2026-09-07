@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -10,8 +11,13 @@ import (
 )
 
 func RunMigrations(databaseURL, migrationsPath string) error {
+	absPath, err := filepath.Abs(migrationsPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve migrations path: %w", err)
+	}
+
 	m, err := migrate.New(
-		fmt.Sprintf("file://%s", migrationsPath),
+		fmt.Sprintf("file://%s", filepath.ToSlash(absPath)),
 		databaseURL,
 	)
 	if err != nil {

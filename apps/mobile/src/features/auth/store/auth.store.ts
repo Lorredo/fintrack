@@ -24,7 +24,8 @@ interface AuthState {
 
 
  restoreToken(
-   accessToken:string
+   accessToken:string,
+   refreshToken?:string
  ):void;
 
   clearSession:
@@ -66,11 +67,13 @@ export const useAuthStore = create<AuthState>((set)=>({
  restoreToken:
  (
    accessToken,
+   refreshToken,
  )=>
- set({
+ set((state) => ({
    accessToken,
+   refreshToken: refreshToken ?? state.refreshToken,
    isAuthenticated:true
- }),
+ })),
 
 
 

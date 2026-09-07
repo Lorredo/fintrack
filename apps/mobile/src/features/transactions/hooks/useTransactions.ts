@@ -42,10 +42,7 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (input: CreateTransactionInput) => TransactionApi.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      RELATED_QUERY_KEYS.forEach((key) => {
-        queryClient.invalidateQueries({ queryKey: key });
-      });
+      queryClient.invalidateQueries();
     },
   });
 }
@@ -55,14 +52,8 @@ export function useUpdateTransaction() {
 
   return useMutation({
     mutationFn: (input: UpdateTransactionInput) => TransactionApi.update(input),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      queryClient.invalidateQueries({
-        queryKey: TRANSACTION_KEYS.detail(variables.id),
-      });
-      RELATED_QUERY_KEYS.forEach((key) => {
-        queryClient.invalidateQueries({ queryKey: key });
-      });
+    onSuccess: () => {
+      queryClient.invalidateQueries();
     },
   });
 }
@@ -73,10 +64,7 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) => TransactionApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      RELATED_QUERY_KEYS.forEach((key) => {
-        queryClient.invalidateQueries({ queryKey: key });
-      });
+      queryClient.invalidateQueries();
     },
   });
 }

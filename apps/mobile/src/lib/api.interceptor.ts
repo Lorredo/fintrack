@@ -111,7 +111,10 @@ error.config;
 
 if(
  error.response?.status !== 401 ||
- originalRequest._retry
+ originalRequest._retry ||
+ originalRequest.url?.includes('auth/login') ||
+ originalRequest.url?.includes('auth/register') ||
+ originalRequest.url?.includes('auth/refresh')
 ){
 
  return Promise.reject(error);
@@ -190,19 +193,26 @@ refreshToken
 const newAccessToken =
 response.accessToken;
 
-
+const newRefreshToken = 
+response.refreshToken;
 
 storage.set(
  StorageKeys.ACCESS_TOKEN,
  newAccessToken
 );
 
-
+if(newRefreshToken){
+  storage.set(
+    StorageKeys.REFRESH_TOKEN,
+    newRefreshToken
+  );
+}
 
 useAuthStore
 .getState()
 .restoreToken(
  newAccessToken,
+ newRefreshToken
 );
 
 

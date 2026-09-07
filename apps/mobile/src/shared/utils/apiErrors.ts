@@ -21,17 +21,17 @@ export function parseApiError(error: unknown): ApiError {
 
   const messages: Record<number, string> = {
     400: serverMessage ?? 'Invalid request.',
-    401: 'Session expired. Please log in again.',
-    403: 'You do not have permission to perform this action.',
-    404: 'The requested resource was not found.',
+    401: serverMessage ?? 'Session expired. Please log in again.',
+    403: serverMessage ?? 'You do not have permission to perform this action.',
+    404: serverMessage ?? 'The requested resource was not found.',
     422: serverMessage ?? 'Validation failed. Please check your input.',
-    429: 'Too many requests. Please try again later.',
-    500: 'Server error. Please try again later.',
+    429: serverMessage ?? 'Too many requests. Please try again later.',
+    500: serverMessage ?? 'Server error. Please try again later.',
   };
 
   return {
     status,
-    message: messages[status] ?? serverMessage ?? 'An unexpected error occurred.',
+    message: serverMessage ?? messages[status] ?? 'An unexpected error occurred.',
     code: err.response.data?.code,
   };
 }

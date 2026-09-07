@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-    darkMode: "class", // <-- Add this
+  darkMode: "class",
   content: [
     "./app/**/*.{js,jsx,ts,tsx}",
     "./src/**/*.{js,jsx,ts,tsx}",
@@ -11,23 +11,29 @@ module.exports = {
       colors: {
         primary: "#2563EB",
         "primary-dark": "#1D4ED8",
+        "primary-light": "#EFF6FF",
         secondary: "#7C3AED",
         success: "#22C55E",
+        "success-light": "#F0FDF4",
         warning: "#F59E0B",
+        "warning-light": "#FFFBEB",
         danger: "#EF4444",
-        background: "#F8FAFC",
+        "danger-light": "#FEF2F2",
+        background: "#F5F7FA",
         surface: "#FFFFFF",
-        border: "#E2E8F0",
-        text: "#0F172A",
-        "text-secondary": "#64748B",
-        placeholder: "#94A3B8",
-        disabled: "#CBD5E1",
+        "surface-alt": "#F9FAFB",
+        border: "#EDF0F5",
+        text: "#111827",
+        "text-secondary": "#6B7280",
+        placeholder: "#9CA3AF",
+        disabled: "#D1D5DB",
       },
       borderRadius: {
         sm: "6px",
-        md: "10px",
+        md: "12px",
         lg: "16px",
         xl: "24px",
+        "2xl": "32px",
         full: "999px",
       },
       fontSize: {
@@ -46,6 +52,7 @@ module.exports = {
         lg: "24px",
         xl: "32px",
         xxl: "40px",
+        "3xl": "48px",
       },
     },
   },
