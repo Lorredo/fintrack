@@ -14,6 +14,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 COPY --from=builder /fintrack-api .
+COPY migrations ./migrations
 
 EXPOSE 8080
 
