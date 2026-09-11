@@ -9,7 +9,8 @@
     },
     "preview": {
       "env": {
-        "NODE_VERSION": "22"
+        "NODE_VERSION": "22",
+        "EXPO_PUBLIC_API_URL": "https://fintrack-162y.onrender.com"
       },
       "android": {
         "image": "latest",
