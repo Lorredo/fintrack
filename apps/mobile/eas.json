@@ -11,14 +11,24 @@
       "env": {
         "NODE_VERSION": "22"
       },
-      "distribution": "internal",
       "android": {
+        "image": "latest",
         "buildType": "apk"
-      }
+      },
+      "ios": {
+        "image": "latest"
+      },
+      "distribution": "internal"
     },
     "production": {
       "env": {
         "NODE_VERSION": "22"
+      },
+      "android": {
+        "image": "latest"
+      },
+      "ios": {
+        "image": "latest"
       },
       "autoIncrement": true
     }
