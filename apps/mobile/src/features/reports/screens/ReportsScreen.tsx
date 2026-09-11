@@ -12,10 +12,10 @@ type Period = 'weekly' | 'monthly' | 'yearly';
 
 export default function ReportsScreen() {
   const [period, setPeriod] = useState<Period>('monthly');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [referenceDate, setReferenceDate] = useState(new Date().toISOString().slice(0, 10)); // Full YYYY-MM-DD so Weekly knows exactly what day it is
 
   const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends, isRefetching: trendsRefetching } = useTrends(6, period);
-  const { data: categories, isLoading: categoriesLoading, isError: categoriesError, refetch: refetchCategories, isRefetching: categoriesRefetching } = useCategoryComparison(selectedMonth, period);
+  const { data: categories, isLoading: categoriesLoading, isError: categoriesError, refetch: refetchCategories, isRefetching: categoriesRefetching } = useCategoryComparison(referenceDate, period);
 
   const isRefetching = trendsRefetching || categoriesRefetching;
   const handleRefresh = useCallback(() => {
@@ -25,23 +25,23 @@ export default function ReportsScreen() {
 
   const handleExport = useCallback(async (format: 'pdf' | 'excel') => {
     try {
-      const response = await ReportsApi.exportCSV(selectedMonth);
+      const response = await ReportsApi.exportCSV(referenceDate.slice(0, 7)); // API still expects YYYY-MM for export
       const csvData = typeof response === 'string' ? response : (response as any).data;
       if (Platform.OS === 'web') {
         const blob = new Blob([csvData], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `transactions_${selectedMonth}.csv`;
+        a.download = `transactions_${referenceDate.slice(0, 7)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        await Share.share({ message: csvData, title: `Transactions ${selectedMonth}` });
+        await Share.share({ message: csvData, title: `Transactions ${referenceDate.slice(0, 7)}` });
       }
     } catch {
       Alert.alert('Error', `Failed to export ${format.toUpperCase()}`);
     }
-  }, [selectedMonth]);
+  }, [referenceDate]);
 
   const periodOptions: { label: string; value: Period }[] = [
     { label: 'Weekly', value: 'weekly' },
@@ -99,7 +99,9 @@ export default function ReportsScreen() {
             <Text style={sectionTitle}>Spending Breakdown</Text>
             <MaterialCommunityIcons name="chart-donut" size={18} color="#9CA3AF" />
           </View>
-          <Text style={sectionSubtitle}>{formatMonth(selectedMonth)}</Text>
+          <Text style={sectionSubtitle}>
+            {period === 'weekly' ? 'This Week' : period === 'yearly' ? new Date(referenceDate).getFullYear() : formatMonth(referenceDate)}
+          </Text>
           <View style={{ marginTop: 16 }}>
             {categoriesLoading ? (
               <Loader />

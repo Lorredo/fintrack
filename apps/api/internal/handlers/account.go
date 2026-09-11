@@ -1,0 +1,95 @@
+package handlers
+
+import (
+	"log"
+	"github.com/go-playground/validator/v10"
+	"github.com/gofiber/fiber/v2"
+	"github.com/Lorredo/fintrack/api/internal/models"
+	"github.com/Lorredo/fintrack/api/internal/services"
+)
+
+type AccountHandler struct {
+	service  *services.AccountService
+	validate *validator.Validate
+}
+
+func NewAccountHandler(service *services.AccountService) *AccountHandler {
+	return &AccountHandler{
+		service:  service,
+		validate: validator.New(),
+	}
+}
+
+func (h *AccountHandler) Create(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+
+	var req models.CreateAccountRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	account, err := h.service.Create(c.Context(), userID, req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create account"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(models.AccountResponse{
+		Message: "Account created successfully",
+		Data:    account,
+	})
+}
+
+func (h *AccountHandler) List(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+
+	accounts, err := h.service.List(c.Context(), userID)
+	if err != nil {
+		log.Printf("ERROR fetching accounts: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch accounts"})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": accounts,
+	})
+}
+
+func (h *AccountHandler) Update(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	id := c.Params("id")
+
+	var req models.UpdateAccountRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	account, err := h.service.Update(c.Context(), id, userID, req)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update account"})
+	}
+
+	return c.JSON(models.AccountResponse{
+		Message: "Account updated successfully",
+		Data:    account,
+	})
+}
+
+func (h *AccountHandler) Delete(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	id := c.Params("id")
+
+	if err := h.service.Delete(c.Context(), id, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete account"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "Account deleted successfully",
+	})
+}

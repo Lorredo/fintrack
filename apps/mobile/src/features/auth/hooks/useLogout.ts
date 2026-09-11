@@ -7,7 +7,7 @@ export function useLogout() {
 
   return useMutation({
     mutationFn: () => AuthService.logout(),
-    onSuccess: () => {
+    onSettled: () => {
       // Clear all cached queries so no stale data persists after logout
       queryClient.clear();
     },

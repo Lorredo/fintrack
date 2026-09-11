@@ -1,19 +1,28 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Screen, Loader, Button, CategoryIcon, ExpandableFAB } from '@/components/ui';
+import { useAccounts } from "@/features/accounts/hooks/useAccounts";
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { getGreeting, formatCurrency, formatDate, getCategoryIcon } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
 import type { Transaction } from '@/features/transactions/types';
+import type { Budget } from '@/features/budgets/types';
+import type { Account } from '@/features/accounts/types';
+
+const { width } = Dimensions.get('window');
+
+const WALLET_COLORS = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706', '#4F46E5'];
 
 export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary();
+  const [activeWalletId, setActiveWalletId] = useState<string | undefined>(undefined);
+  const { data: accounts } = useAccounts();
+  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(undefined, undefined);
 
   // Sync data to native storage bridge for Home Screen Widgets
   useEffect(() => {
@@ -21,6 +30,20 @@ export default function DashboardScreen() {
       WidgetSyncService.syncActiveBudgets(data.activeBudgets);
     }
   }, [data?.activeBudgets]);
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const xOffset = event.nativeEvent.contentOffset.x;
+    const cardWidth = width - 40; // Approx card width + margin
+    const index = Math.round(xOffset / cardWidth);
+    
+    if (accounts) {
+      if (index === 0) {
+        setActiveWalletId(undefined);
+      } else if (index > 0 && index <= accounts.length) {
+        setActiveWalletId(accounts[index - 1].id);
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -53,14 +76,6 @@ export default function DashboardScreen() {
         <ExpandableFAB
           actions={[
             {
-              icon: 'wallet-outline',
-              label: 'Add Budget',
-              color: '#2563EB',
-              onPress: () => {
-                router.push('/budget-form');
-              }
-            },
-            {
               icon: 'arrow-down-circle',
               label: 'Add Income',
               color: '#22C55E',
@@ -85,62 +100,109 @@ export default function DashboardScreen() {
         <Text style={{ fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 }}>{fullName} 👋</Text>
       </View>
 
-      {/* Hero Balance Card */}
-      <View
-        style={{
-          borderRadius: 24,
-          padding: 24,
-          marginBottom: 16,
-          backgroundColor: '#2563EB',
-          shadowColor: '#2563EB',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.3,
-          shadowRadius: 20,
-          elevation: 8,
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>Total Balance</Text>
-          <MaterialCommunityIcons name="wallet-outline" size={22} color="rgba(255,255,255,0.7)" />
-        </View>
-        <Text style={{ fontSize: 36, fontWeight: '700', color: '#fff', letterSpacing: -1, marginBottom: 12 }}>
-          {formatCurrency(summary.balance)}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <MaterialCommunityIcons
-            name={summary.balance >= 0 ? 'trending-up' : 'trending-down'}
-            size={15}
-            color="rgba(255,255,255,0.6)"
+      {/* Wallet Carousel */}
+      <View style={{ marginBottom: 16 }}>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={handleScroll}
+          snapToInterval={width - 32} // View width minus padding
+          decelerationRate="fast"
+          contentContainerStyle={{ paddingRight: 32 }}
+        >
+          {/* Card: All Wallets */}
+          <WalletCard 
+            title="Total Balance"
+            balance={summary.balance}
+            icon="wallet-outline"
+            isPositive={summary.balance >= 0}
+            subtitle="Across all wallets"
           />
-          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
-            {summary.balance >= 0 ? 'Positive' : 'Negative'} balance this month
-          </Text>
+
+          {/* Individual Wallets */}
+          {accounts?.map((acc: Account, index: number) => (
+            <WalletCard 
+              key={acc.id}
+              color={acc.color || WALLET_COLORS[(index + 1) % WALLET_COLORS.length]}
+              title={acc.name}
+              balance={acc.balance || 0}
+              icon={
+                acc.type === "cash" ? "cash" : 
+                acc.type === "bank" ? "bank" : 
+                acc.type === "ewallet" ? "cellphone" : "trending-up"
+              }
+              isPositive={(acc.balance || 0) >= 0}
+              subtitle={`${acc.type.charAt(0).toUpperCase() + acc.type.slice(1)} Wallet`}
+            />
+          ))}
+        </ScrollView>
+        
+        {/* Pagination Dots */}
+        {accounts && accounts.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 12 }}>
+            <View style={{ width: activeWalletId === undefined ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeWalletId === undefined ? '#2563EB' : '#D1D5DB' }} />
+            {accounts.map((acc: Account) => (
+              <View key={acc.id} style={{ width: activeWalletId === acc.id ? 16 : 6, height: 6, borderRadius: 3, backgroundColor: activeWalletId === acc.id ? '#2563EB' : '#D1D5DB' }} />
+            ))}
+          </View>
+        )}
+
+        {/* Quick Actions Row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-start', gap: 24, marginTop: 24, marginBottom: 8 }}>
+          <Pressable
+            onPress={() => router.push({ pathname: '/transaction-form', params: { type: 'transfer' } })}
+            style={{ alignItems: 'center', gap: 8 }}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+              <MaterialCommunityIcons name="swap-horizontal" size={28} color="#4F46E5" />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Transfer</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push('/budgets')}
+            style={{ alignItems: 'center', gap: 8 }}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+              <MaterialCommunityIcons name="target" size={28} color="#7C3AED" />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Budget</Text>
+          </Pressable>
+          
+          <Pressable
+            onPress={() => router.push('/accounts')}
+            style={{ alignItems: 'center', gap: 8 }}
+          >
+            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+              <MaterialCommunityIcons name="bank-outline" size={28} color="#059669" />
+            </View>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Wallets</Text>
+          </Pressable>
         </View>
       </View>
 
       {/* Safe to Spend / Active Budgets */}
       {summary.activeBudgets?.length > 0 && (
-        <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 10, paddingHorizontal: 4 }}>
-            Safe to Spend
-          </Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 20 }}>
-            {summary.activeBudgets.map((budget) => {
-              const remaining = Math.max(budget.remaining, 0);
-              const isOver = budget.remaining < 0;
+        <View style={{ marginBottom: 24 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Safe to Spend</Text>
+            <Pressable onPress={() => router.push('/budgets')}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563EB' }}>Manage</Text>
+            </Pressable>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+            {summary.activeBudgets.map((budget: Budget) => {
+              const remaining = Math.max(budget.amount - (budget.spent || 0), 0);
+              const isOver = (budget.spent || 0) > budget.amount;
               return (
                 <View
                   key={budget.id}
                   style={{
-                    backgroundColor: '#fff',
+                    backgroundColor: isOver ? '#FEF2F2' : '#fff',
                     borderRadius: 16,
                     padding: 16,
-                    minWidth: 150,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 4,
-                    elevation: 2,
+                    width: 140,
                     borderWidth: 1,
                     borderColor: isOver ? '#FEE2E2' : '#F3F4F6'
                   }}
@@ -230,8 +292,8 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           <View style={{ gap: 8 }}>
-            {summary.recentTransactions.map((transaction) => (
-              <TransactionRow key={transaction.id} transaction={transaction} />
+            {summary.recentTransactions.map((transaction: Transaction) => (
+              <TransactionRow key={transaction.id} transaction={transaction} accounts={accounts} />
             ))}
           </View>
         </View>
@@ -247,10 +309,46 @@ export default function DashboardScreen() {
           <Text style={{ fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 20, lineHeight: 22 }}>
             Start tracking your finances by adding your first transaction.
           </Text>
-           
         </View>
       )}
     </Screen>
+  );
+}
+
+function WalletCard({ title, balance, icon, isPositive, subtitle, color = '#2563EB' }: { title: string, balance: number, icon: any, isPositive: boolean, subtitle: string, color?: string }) {
+  return (
+    <View
+      style={{
+        borderRadius: 24,
+        padding: 24,
+        backgroundColor: color,
+        width: width - 40,
+        marginRight: 8,
+        shadowColor: color,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 8,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>{title}</Text>
+        <MaterialCommunityIcons name={icon} size={22} color="rgba(255,255,255,0.7)" />
+      </View>
+      <Text style={{ fontSize: 36, fontWeight: '700', color: '#fff', letterSpacing: -1, marginBottom: 12 }}>
+        {formatCurrency(balance)}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <MaterialCommunityIcons
+          name={isPositive ? 'trending-up' : 'trending-down'}
+          size={15}
+          color="rgba(255,255,255,0.6)"
+        />
+        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+          {subtitle}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -291,8 +389,9 @@ function MonthlySpendingChart({ data }: { data: { category: string; total: numbe
   );
 }
 
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({ transaction, accounts }: { transaction: Transaction; accounts?: Account[] }) {
   const isExpense = transaction.type === 'expense';
+  const isTransfer = transaction.type === 'transfer';
 
   return (
     <View
@@ -311,9 +410,18 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
     >
       <CategoryIcon category={transaction.category} size="sm" />
       <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
-          {transaction.category}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+            {transaction.category}
+          </Text>
+          {accounts && (
+            <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ fontSize: 9, fontWeight: '600', color: '#6B7280' }}>
+                {transaction.type === 'transfer' ? `${accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet'} → ${accounts.find(a => a.id === transaction.transferAccountId)?.name || 'Wallet'}` : (accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet')}
+              </Text>
+            </View>
+          )}
+        </View>
         {transaction.description && (
           <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
             {transaction.description}
@@ -323,8 +431,8 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
           {formatDate(transaction.date)}
         </Text>
       </View>
-      <Text style={{ fontSize: 15, fontWeight: '700', color: isExpense ? '#EF4444' : '#22C55E' }}>
-        {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
+      <Text style={{ fontSize: 15, fontWeight: '700', color: isTransfer ? '#6B7280' : isExpense ? '#EF4444' : '#22C55E' }}>
+        {isTransfer ? '⇄ ' : isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
       </Text>
     </View>
   );

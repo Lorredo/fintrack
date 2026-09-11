@@ -112,7 +112,6 @@ export default function BudgetListScreen() {
           <EmptyState
             title="No budgets set"
             description="Set monthly budgets to track your spending limits."
-            action={<Button title="Add Budget" icon="plus" onPress={handleAddNew} />}
           />
         ) : (
           <FlatList
@@ -141,7 +140,7 @@ export default function BudgetListScreen() {
         style={{
           position: 'absolute',
           bottom: 24,
-          right: 0,
+          right: 24,
           width: 56,
           height: 56,
           borderRadius: 28,

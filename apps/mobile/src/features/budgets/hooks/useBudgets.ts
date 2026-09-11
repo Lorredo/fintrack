@@ -31,7 +31,8 @@ export function useCreateBudget() {
   return useMutation({
     mutationFn: (input: CreateBudgetInput) => BudgetApi.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -42,7 +43,8 @@ export function useUpdateBudget() {
   return useMutation({
     mutationFn: (input: UpdateBudgetInput) => BudgetApi.update(input),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -53,7 +55,8 @@ export function useDeleteBudget() {
   return useMutation({
     mutationFn: (id: string) => BudgetApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -64,7 +67,8 @@ export function useRebalanceBudget() {
     mutationFn: (payload: { fromBudgetId: string; toBudgetId: string; amount: number }) => 
       BudgetApi.rebalance(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: BUDGET_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

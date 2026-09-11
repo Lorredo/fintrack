@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,13 +10,15 @@ import type { CreateTransactionInput, UpdateTransactionInput } from '@/features/
 
 export default function TransactionFormScreen() {
   const router = useRouter();
-  const { type } = useLocalSearchParams<{ type?: 'expense' | 'income' }>();
+  const { type } = useLocalSearchParams<{ type?: 'expense' | 'income' | 'transfer' }>();
   
   const editingTransaction = useUIStore((state) => state.editingTransaction);
   const setEditingTransaction = useUIStore((state) => state.setEditingTransaction);
   
   const createMutation = useCreateTransaction();
   const updateMutation = useUpdateTransaction();
+
+  const [formType, setFormType] = useState(editingTransaction?.type || type || 'expense');
 
   const handleClose = useCallback(() => {
     setEditingTransaction(null);
@@ -38,7 +40,12 @@ export default function TransactionFormScreen() {
     [createMutation, updateMutation, handleClose]
   );
 
-  const title = editingTransaction ? 'Edit Transaction' : 'Add Transaction';
+  const getTitle = () => {
+    if (editingTransaction) return 'Edit ' + (formType.charAt(0).toUpperCase() + formType.slice(1));
+    if (formType === 'transfer') return 'Transfer Money';
+    return 'Add ' + (formType.charAt(0).toUpperCase() + formType.slice(1));
+  };
+  const title = getTitle();
 
   return (
     <Screen scrollable>
@@ -53,6 +60,7 @@ export default function TransactionFormScreen() {
       <TransactionForm
         transaction={editingTransaction}
         initialType={type || 'expense'}
+        onTypeChange={setFormType}
         onSubmit={handleSubmit}
         onCancel={handleClose}
         loading={createMutation.isPending || updateMutation.isPending}

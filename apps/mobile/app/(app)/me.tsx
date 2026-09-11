@@ -8,7 +8,8 @@ import { Screen } from "@/components/ui";
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
-const menuItems: { icon: IconName; label: string; color: string; bg: string }[] = [
+const menuItems: { icon: IconName; label: string; color: string; bg: string; route?: string }[] = [
+  { icon: 'wallet-outline', label: 'Wallets & Accounts', color: '#0EA5E9', bg: '#E0F2FE', route: '/(app)/accounts' },
   { icon: 'account-circle-outline', label: 'Account Settings', color: '#2563EB', bg: '#EFF6FF' },
   { icon: 'bell-outline', label: 'Notifications', color: '#7C3AED', bg: '#F5F3FF' },
   { icon: 'help-circle-outline', label: 'Help & Support', color: '#22C55E', bg: '#F0FDF4' },
@@ -115,6 +116,7 @@ export default function MeScreen() {
         {menuItems.map((item, index) => (
           <Pressable
             key={item.label}
+            onPress={() => item.route && router.push(item.route as any)}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -137,7 +139,7 @@ export default function MeScreen() {
 
       {/* Version */}
       <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginBottom: 20 }}>
-        FinTrack v1.0.0
+        FinTrack v1.1.0
       </Text>
 
       {/* Logout */}

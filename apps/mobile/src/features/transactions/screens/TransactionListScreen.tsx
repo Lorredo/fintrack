@@ -1,10 +1,11 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen, Loader, EmptyState, Button, CategoryIcon, ExpandableFAB } from '@/components/ui';
 import { useTransactionList, useDeleteTransaction } from '../hooks/useTransactions';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { Transaction } from '../types';
 import { formatCurrency, formatDate } from '@/shared/utils/categories';
@@ -17,16 +18,28 @@ export default function TransactionListScreen() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1); // Reset page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
     page,
     limit: 20,
     type: activeFilter === 'all' ? undefined : activeFilter,
+    search: debouncedSearch || undefined,
   });
 
   const deleteMutation = useDeleteTransaction();
+  const { data: accounts } = useAccounts();
 
   const transactions = useMemo(() => data?.data || [], [data]);
   const totalPages = data?.totalPages || 1;
@@ -175,6 +188,7 @@ export default function TransactionListScreen() {
             renderItem={({ item }) => (
               <TransactionRow
                 transaction={item}
+                accounts={accounts}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
@@ -254,10 +268,12 @@ export default function TransactionListScreen() {
 
 function TransactionRow({
   transaction,
+  accounts,
   onEdit,
   onDelete,
 }: {
   transaction: Transaction;
+  accounts?: any[];
   onEdit: (transaction: Transaction) => void;
   onDelete: (id: string) => void;
 }) {
@@ -280,9 +296,18 @@ function TransactionRow({
     >
       <CategoryIcon category={transaction.category} size="sm" />
       <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
-          {transaction.category}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
+            {transaction.category}
+          </Text>
+          {accounts && (
+            <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+              <Text style={{ fontSize: 9, fontWeight: '600', color: '#6B7280' }}>
+                {transaction.type === 'transfer' ? `${accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet'} → ${accounts.find(a => a.id === transaction.transferAccountId)?.name || 'Wallet'}` : (accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet')}
+              </Text>
+            </View>
+          )}
+        </View>
         {transaction.description && (
           <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
             {transaction.description}

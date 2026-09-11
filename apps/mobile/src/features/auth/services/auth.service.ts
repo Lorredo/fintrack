@@ -43,17 +43,16 @@ export class AuthService {
   }
 
   static async logout() {
+    try {
+      await AuthApi.logout();
+    } catch (e) {
+      // Ignore API errors on logout (e.g., token already expired)
+    }
+
     storage.remove(StorageKeys.ACCESS_TOKEN);
-
     storage.remove(StorageKeys.REFRESH_TOKEN);
-
-    storage.remove(
- StorageKeys.USER
-);
-
+    storage.remove(StorageKeys.USER);
 
     useAuthStore.getState().clearSession();
-
-    await AuthApi.logout();
   }
 }

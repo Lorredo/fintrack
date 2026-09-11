@@ -31,6 +31,7 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 		Category: c.Query("category", ""),
 		DateFrom: c.Query("dateFrom", ""),
 		DateTo:   c.Query("dateTo", ""),
+		Search:   c.Query("search", ""),
 	}
 
 	result, err := h.service.List(c.Context(), userID, page, limit, filter)

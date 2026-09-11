@@ -4,37 +4,37 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-
 	"github.com/Lorredo/fintrack/api/internal/services"
 )
 
 type DashboardHandler struct {
-	service *services.DashboardService
+	dashboardService *services.DashboardService
 }
 
-func NewDashboardHandler(service *services.DashboardService) *DashboardHandler {
-	return &DashboardHandler{service: service}
+func NewDashboardHandler(dashboardService *services.DashboardService) *DashboardHandler {
+	return &DashboardHandler{dashboardService: dashboardService}
 }
 
-// Summary returns aggregated dashboard data for the authenticated user.
 func (h *DashboardHandler) Summary(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
-
-	now := time.Now()
-	month := c.Query("month", now.Format("2006-01"))
-
-	if _, err := time.Parse("2006-01", month); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid month format, use YYYY-MM",
-		})
+	
+	month := c.Query("month")
+	if month == "" {
+		month = time.Now().Format("2006-01")
 	}
 
-	summary, err := h.service.GetSummary(c.Context(), userID, month)
+	accountID := c.Query("account_id") // Optional
+
+	summary, err := h.dashboardService.GetSummary(c.Context(), userID, month, accountID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to fetch dashboard summary",
+			"error":   err.Error(),
 		})
 	}
 
-	return c.JSON(summary)
+	return c.JSON(fiber.Map{
+		"message": "Dashboard summary fetched successfully",
+		"data":    summary,
+	})
 }

@@ -1,0 +1,3 @@
+ALTER TABLE transactions DROP COLUMN IF EXISTS account_id;
+ALTER TABLE budgets DROP COLUMN IF EXISTS account_id;
+DROP TABLE IF EXISTS accounts;

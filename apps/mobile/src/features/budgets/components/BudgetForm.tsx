@@ -1,9 +1,17 @@
-import { useState, useMemo, useEffect } from 'react';
-import { View, Text, Pressable, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Pressable, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Input, Button } from '@/components/ui';
-import type { Budget, CreateBudgetInput, UpdateBudgetInput } from '../types';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
+import type { Budget, CreateBudgetInput, UpdateBudgetInput, PeriodType } from '../types';
+
+interface BudgetFormProps {
+  budget?: Budget | null;
+  onSubmit: (data: CreateBudgetInput | UpdateBudgetInput) => void;
+  onCancel: () => void;
+  loading?: boolean;
+}
 
 const CATEGORIES = [
   'Food & Drinks',
@@ -17,15 +25,12 @@ const CATEGORIES = [
   'Other',
 ];
 
-const PERIOD_TYPES = ['daily', 'weekly', 'monthly', 'custom'] as const;
-type PeriodType = typeof PERIOD_TYPES[number];
-
-interface BudgetFormProps {
-  budget?: Budget | null;
-  onSubmit: (data: CreateBudgetInput | UpdateBudgetInput) => void;
-  onCancel: () => void;
-  loading?: boolean;
-}
+const PERIODS: { label: string; value: PeriodType }[] = [
+  { label: 'Weekly', value: 'weekly' },
+  { label: 'Monthly', value: 'monthly' },
+  { label: 'Yearly', value: 'yearly' },
+  { label: 'Custom', value: 'custom' },
+];
 
 export default function BudgetForm({
   budget,
@@ -33,58 +38,59 @@ export default function BudgetForm({
   onCancel,
   loading,
 }: BudgetFormProps) {
+  const { data: accounts, isLoading: accountsLoading } = useAccounts();
+
+  const [accountId, setAccountId] = useState(budget?.accountId || '');
   const [category, setCategory] = useState(budget?.category || '');
-  const [amount, setAmount] = useState(budget ? String(budget.amount) : '');
-  
+  const [amount, setAmount] = useState(
+    budget ? String(budget.amount) : '',
+  );
   const [periodType, setPeriodType] = useState<PeriodType>(
-    (budget?.periodType as PeriodType) || 'monthly'
+    budget?.periodType || 'monthly'
   );
-  const [periodLength, setPeriodLength] = useState('1');
   
+  // Default dates logic
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
   const [startDate, setStartDate] = useState(
-    budget?.startDate ? new Date(budget.startDate) : new Date()
+    budget?.startDate || firstDay.toISOString().split('T')[0]
   );
-  
   const [endDate, setEndDate] = useState(
-    budget?.endDate ? new Date(budget.endDate) : new Date()
+    budget?.endDate || lastDay.toISOString().split('T')[0]
   );
 
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Auto-calculate end date when start date, period type, or length changes
   useEffect(() => {
-    if (periodType === 'custom') return;
-    
-    const length = parseInt(periodLength) || 1;
-    const newEnd = new Date(startDate);
-    
-    if (periodType === 'daily') {
-      newEnd.setDate(startDate.getDate() + length - 1);
-    } else if (periodType === 'weekly') {
-      newEnd.setDate(startDate.getDate() + (length * 7) - 1);
-    } else if (periodType === 'monthly') {
-      newEnd.setMonth(startDate.getMonth() + length);
-      newEnd.setDate(newEnd.getDate() - 1);
+    if (accounts && accounts.length > 0 && !accountId) {
+      setAccountId(accounts[0].id);
     }
-    
-    setEndDate(newEnd);
-  }, [startDate, periodType, periodLength]);
+  }, [accounts, accountId]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!category) newErrors.category = 'Category is required';
+    if (!accountId) {
+      newErrors.accountId = 'Wallet/Account is required';
+    }
+    if (!category) {
+      newErrors.category = 'Category is required';
+    }
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       newErrors.amount = 'Amount must be greater than zero';
     }
-    if (periodType !== 'custom' && (!periodLength || parseInt(periodLength) < 1)) {
-      newErrors.periodLength = 'Must be at least 1';
+    if (!startDate) {
+      newErrors.startDate = 'Start date is required';
     }
-    if (endDate < startDate) {
-      newErrors.endDate = 'End date cannot be before start date';
+    if (!endDate) {
+      newErrors.endDate = 'End date is required';
+    }
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      newErrors.endDate = 'End date must be after start date';
     }
 
     setErrors(newErrors);
@@ -95,11 +101,12 @@ export default function BudgetForm({
     if (!validate()) return;
 
     const payload = {
+      accountId,
       category,
       amount: parseFloat(amount),
       periodType,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate,
+      endDate,
     };
 
     if (budget) {
@@ -110,31 +117,66 @@ export default function BudgetForm({
   };
 
   return (
-    <View className="gap-md pb-xl">
+    <View className="gap-lg">
+      {/* Wallet Selector */}
+      <View>
+        <Text className="text-sm font-medium text-text mb-xs">Wallet</Text>
+        {accountsLoading ? (
+          <ActivityIndicator size="small" color="#2563EB" style={{ alignSelf: 'flex-start' }} />
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+            {accounts?.map((acc) => (
+              <Pressable
+                key={acc.id}
+                onPress={() => setAccountId(acc.id)}
+                className={`px-md py-sm rounded-xl border ${
+                  accountId === acc.id
+                    ? 'bg-primary border-primary'
+                    : 'bg-surface border-border'
+                }`}
+              >
+                <Text
+                  className={`font-semibold ${
+                    accountId === acc.id ? 'text-white' : 'text-text-secondary'
+                  }`}
+                >
+                  {acc.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+        {errors.accountId && (
+          <Text className="text-xs text-danger mt-xs">{errors.accountId}</Text>
+        )}
+      </View>
+
       {/* Category */}
       <View>
         <Text className="text-sm font-medium text-text mb-xs">Category</Text>
-        <View className="flex-row flex-wrap gap-xs">
-          {CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat}
-              onPress={() => setCategory(cat)}
-              className={`px-sm py-xs rounded-full border ${
-                category === cat
-                  ? 'bg-primary border-primary'
-                  : 'bg-surface border-border'
-              }`}
-            >
-              <Text
-                className={`text-xs ${
-                  category === cat ? 'text-white' : 'text-text-secondary'
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-2">
+          <View className="flex-row gap-xs pr-4">
+            {CATEGORIES.map((cat) => (
+              <Pressable
+                key={cat}
+                onPress={() => setCategory(cat)}
+                className={`px-sm py-xs rounded-full border ${
+                  category === cat
+                    ? 'bg-primary border-primary'
+                    : 'bg-surface border-border'
                 }`}
               >
-                {cat}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <Text
+                  className={`text-xs ${
+                    category === cat ? 'text-white' : 'text-text-secondary'
+                  }`}
+                >
+                  {cat}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
         {errors.category && (
           <Text className="text-xs text-danger mt-xs">{errors.category}</Text>
         )}
@@ -142,7 +184,7 @@ export default function BudgetForm({
 
       {/* Amount */}
       <Input
-        label="Budget Amount"
+        label="Amount limit"
         placeholder="0.00"
         keyboardType="decimal-pad"
         value={amount}
@@ -150,107 +192,85 @@ export default function BudgetForm({
         error={errors.amount}
       />
 
-      {/* Period Type */}
+      {/* Period */}
       <View>
-        <Text className="text-sm font-medium text-text mb-xs">Recurrence</Text>
-        <View className="flex-row flex-wrap gap-xs mb-sm">
-          {PERIOD_TYPES.map((type) => (
+        <Text className="text-sm font-medium text-text mb-xs">Period</Text>
+        <View className="flex-row gap-xs flex-wrap">
+          {PERIODS.map((p) => (
             <Pressable
-              key={type}
-              onPress={() => {
-                setPeriodType(type);
-                if (type === 'daily' || type === 'weekly' || type === 'monthly') {
-                  setPeriodLength('1');
-                }
-              }}
-              className={`px-md py-sm rounded-lg border ${
-                periodType === type
-                  ? 'bg-primary/10 border-primary'
+              key={p.value}
+              onPress={() => setPeriodType(p.value)}
+              className={`px-md py-sm rounded-xl border flex-1 ${
+                periodType === p.value
+                  ? 'bg-primary border-primary'
                   : 'bg-surface border-border'
               }`}
             >
               <Text
-                className={`text-sm capitalize ${
-                  periodType === type ? 'text-primary font-semibold' : 'text-text-secondary'
+                className={`text-center font-semibold ${
+                  periodType === p.value ? 'text-white' : 'text-text-secondary'
                 }`}
               >
-                {type}
+                {p.label}
               </Text>
             </Pressable>
           ))}
         </View>
       </View>
 
-      {/* Period Length (Only for non-custom) */}
-      {periodType !== 'custom' && (
-        <Input
-          label={`Number of ${periodType === 'daily' ? 'days' : periodType === 'weekly' ? 'weeks' : 'months'}`}
-          placeholder="1"
-          keyboardType="number-pad"
-          value={periodLength}
-          onChangeText={setPeriodLength}
-          error={errors.periodLength}
-        />
-      )}
-
-      {/* Date Pickers */}
-      <View className="flex-row gap-sm">
+      {/* Dates */}
+      <View className="flex-row gap-md">
         <View className="flex-1">
           <Text className="text-sm font-medium text-text mb-xs">Start Date</Text>
           <Pressable 
             onPress={() => setShowStartDatePicker(true)}
-            className="rounded-xl px-md py-[15px] bg-surface border-2 border-border"
+            className={`rounded-xl px-md py-3 bg-surface border ${
+              errors.startDate ? 'border-danger' : 'border-border'
+            }`}
           >
-            <Text className="text-body text-text">{startDate.toLocaleDateString()}</Text>
+            <Text className="text-text">{startDate}</Text>
           </Pressable>
         </View>
-
         <View className="flex-1">
           <Text className="text-sm font-medium text-text mb-xs">End Date</Text>
           <Pressable 
-            onPress={() => periodType === 'custom' && setShowEndDatePicker(true)}
-            className={`rounded-xl px-md py-[15px] ${periodType !== 'custom' ? 'bg-background' : 'bg-surface'} border-2 ${
+            onPress={() => setShowEndDatePicker(true)}
+            className={`rounded-xl px-md py-3 bg-surface border ${
               errors.endDate ? 'border-danger' : 'border-border'
             }`}
           >
-            <Text className={`text-body ${periodType !== 'custom' ? 'text-text-tertiary' : 'text-text'}`}>
-              {endDate.toLocaleDateString()}
-            </Text>
+            <Text className="text-text">{endDate}</Text>
           </Pressable>
-          {errors.endDate && (
-            <Text className="text-xs text-danger mt-xs">{errors.endDate}</Text>
-          )}
         </View>
       </View>
 
+      {(errors.startDate || errors.endDate) && (
+        <Text className="text-xs text-danger">
+          {errors.startDate || errors.endDate}
+        </Text>
+      )}
+
       {showStartDatePicker && (
         <DateTimePicker
-          value={startDate}
+          value={new Date(startDate)}
           mode="date"
           display="default"
-          onChange={(event, selectedDate) => {
+          onChange={(event, date) => {
             setShowStartDatePicker(Platform.OS === 'ios');
-            if (event.type === 'set' && selectedDate) {
-              setStartDate(selectedDate);
-            } else if (event.type === 'dismissed') {
-              setShowStartDatePicker(false);
-            }
+            if (date) setStartDate(date.toISOString().split('T')[0]);
           }}
         />
       )}
 
-      {showEndDatePicker && periodType === 'custom' && (
+      {showEndDatePicker && (
         <DateTimePicker
-          value={endDate}
+          value={new Date(endDate)}
           mode="date"
           display="default"
-          onChange={(event, selectedDate) => {
+          minimumDate={new Date(startDate)}
+          onChange={(event, date) => {
             setShowEndDatePicker(Platform.OS === 'ios');
-            if (event.type === 'set' && selectedDate) {
-              setEndDate(selectedDate);
-            } else if (event.type === 'dismissed') {
-              setShowEndDatePicker(false);
-            }
+            if (date) setEndDate(date.toISOString().split('T')[0]);
           }}
         />
       )}
@@ -258,11 +278,15 @@ export default function BudgetForm({
       {/* Actions */}
       <View className="flex-row gap-sm mt-md">
         <View className="flex-1">
-          <Button title="Cancel" variant="outline" onPress={onCancel} />
+          <Button
+            title="Cancel"
+            variant="outline"
+            onPress={onCancel}
+          />
         </View>
         <View className="flex-1">
           <Button
-            title={budget ? 'Update Budget' : 'Save Budget'}
+            title={budget ? 'Update' : 'Add'}
             onPress={handleSubmit}
             loading={loading}
           />

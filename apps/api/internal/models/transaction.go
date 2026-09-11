@@ -5,36 +5,43 @@ import "time"
 type TransactionType string
 
 const (
-	TransactionTypeIncome  TransactionType = "income"
-	TransactionTypeExpense TransactionType = "expense"
+	TransactionTypeIncome   TransactionType = "income"
+	TransactionTypeExpense  TransactionType = "expense"
+	TransactionTypeTransfer TransactionType = "transfer"
 )
 
 type Transaction struct {
-	ID          string          `json:"id"`
-	UserID      string          `json:"userId"`
-	Type        TransactionType `json:"type"`
-	Amount      float64         `json:"amount"`
-	Category    string          `json:"category"`
-	Description *string         `json:"description,omitempty"`
-	Date        string          `json:"date"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	UpdatedAt   time.Time       `json:"updatedAt"`
+	ID                string          `json:"id"`
+	UserID            string          `json:"userId"`
+	AccountID         string          `json:"accountId"`
+	TransferAccountID *string         `json:"transferAccountId,omitempty"`
+	Type              TransactionType `json:"type"`
+	Amount            float64         `json:"amount"`
+	Category          string          `json:"category"`
+	Description       *string         `json:"description,omitempty"`
+	Date              string          `json:"date"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
 }
 
 type CreateTransactionRequest struct {
-	Type        TransactionType `json:"type" validate:"required,oneof=income expense"`
-	Amount      float64         `json:"amount" validate:"required,gt=0"`
-	Category    string          `json:"category" validate:"required"`
-	Description *string         `json:"description,omitempty"`
-	Date        string          `json:"date" validate:"required"`
+	AccountID         string          `json:"accountId" validate:"required"`
+	TransferAccountID *string         `json:"transferAccountId,omitempty"`
+	Type              TransactionType `json:"type" validate:"required,oneof=income expense transfer"`
+	Amount            float64         `json:"amount" validate:"required,gt=0"`
+	Category          string          `json:"category"`
+	Description       *string         `json:"description,omitempty"`
+	Date              string          `json:"date" validate:"required"`
 }
 
 type UpdateTransactionRequest struct {
-	Type        TransactionType `json:"type,omitempty" validate:"omitempty,oneof=income expense"`
-	Amount      float64         `json:"amount,omitempty" validate:"omitempty,gt=0"`
-	Category    string          `json:"category,omitempty"`
-	Description *string         `json:"description,omitempty"`
-	Date        string          `json:"date,omitempty"`
+	AccountID         string          `json:"accountId,omitempty"`
+	TransferAccountID *string         `json:"transferAccountId,omitempty"`
+	Type              TransactionType `json:"type,omitempty" validate:"omitempty,oneof=income expense transfer"`
+	Amount            float64         `json:"amount,omitempty" validate:"omitempty,gt=0"`
+	Category          string          `json:"category,omitempty"`
+	Description       *string         `json:"description,omitempty"`
+	Date              string          `json:"date,omitempty"`
 }
 
 type TransactionResponse struct {

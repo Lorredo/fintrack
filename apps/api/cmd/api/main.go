@@ -67,8 +67,11 @@ func main() {
 	reportService := services.NewReportService(database.Pool)
 	reportHandler := handlers.NewReportHandler(reportService)
 
+	accountService := services.NewAccountService(database.Pool)
+	accountHandler := handlers.NewAccountHandler(accountService)
+
 	// Routes
-	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler)
+	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler, accountHandler)
 
 	// Graceful shutdown
 	go func() {

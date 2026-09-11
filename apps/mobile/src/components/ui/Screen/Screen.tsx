@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { View, ViewProps, ScrollView, RefreshControl, Platform } from 'react-native';
+import { View, ViewProps, ScrollView, RefreshControl, Platform, KeyboardAvoidingView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ScreenProps extends ViewProps {
@@ -24,7 +24,10 @@ export function Screen({
 
   if (scrollable) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
           className={`flex-1 px-5 ${className}`}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -39,16 +42,19 @@ export function Screen({
           {children}
         </ScrollView>
         {floatingComponent}
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}>
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View className={`flex-1 px-5 ${className}`} {...props}>
         {children}
       </View>
       {floatingComponent}
-    </View>
+    </KeyboardAvoidingView>
   );
 }

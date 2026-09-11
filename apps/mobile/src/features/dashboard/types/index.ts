@@ -16,3 +16,7 @@ export interface DashboardSummary {
   categoryBreakdown: CategorySummary[];
   activeBudgets: Budget[];
 }
+export interface DashboardSummaryResponse {
+  message: string;
+  data: DashboardSummary;
+}

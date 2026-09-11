@@ -6,6 +6,11 @@ import { AppProvider } from "@/providers/AppProvider";
 import AuthInitializer from "@/providers/AuthInitializer";
 import ApiInitializer from "@/providers/ApiInitializer";
 
+import { registerWidgetTaskHandler } from 'react-native-android-widget';
+import { widgetTaskHandler } from '../widget/WidgetTaskHandler';
+
+registerWidgetTaskHandler(widgetTaskHandler);
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>

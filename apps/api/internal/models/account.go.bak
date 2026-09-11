@@ -1,0 +1,27 @@
+package models
+
+import "time"
+
+type Account struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type CreateAccountRequest struct {
+	Name string `json:"name" validate:"required"`
+	Type string `json:"type" validate:"required,oneof=cash bank ewallet investment"`
+}
+
+type UpdateAccountRequest struct {
+	Name string `json:"name,omitempty"`
+	Type string `json:"type,omitempty" validate:"omitempty,oneof=cash bank ewallet investment"`
+}
+
+type AccountResponse struct {
+	Message string   `json:"message"`
+	Data    *Account `json:"data,omitempty"`
+}

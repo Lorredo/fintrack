@@ -42,7 +42,9 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (input: CreateTransactionInput) => TransactionApi.create(input),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
     },
   });
 }
@@ -53,7 +55,9 @@ export function useUpdateTransaction() {
   return useMutation({
     mutationFn: (input: UpdateTransactionInput) => TransactionApi.update(input),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
     },
   });
 }
@@ -64,7 +68,9 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) => TransactionApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
+      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
     },
   });
 }

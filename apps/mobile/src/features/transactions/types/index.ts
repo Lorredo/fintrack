@@ -1,8 +1,10 @@
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = 'income' | 'expense' | 'transfer';
 
 export interface Transaction {
   id: string;
   userId: string;
+  accountId: string;
+  transferAccountId?: string;
   type: TransactionType;
   amount: number;
   category: string;
@@ -13,6 +15,8 @@ export interface Transaction {
 }
 
 export interface CreateTransactionInput {
+  accountId: string;
+  transferAccountId?: string;
   type: TransactionType;
   amount: number;
   category: string;
@@ -22,6 +26,8 @@ export interface CreateTransactionInput {
 
 export interface UpdateTransactionInput {
   id: string;
+  accountId?: string;
+  transferAccountId?: string;
   type?: TransactionType;
   amount?: number;
   category?: string;
@@ -31,7 +37,7 @@ export interface UpdateTransactionInput {
 
 export interface TransactionResponse {
   message: string;
-  data?: Transaction;
+  data: Transaction;
 }
 
 export interface TransactionListResponse {
@@ -43,10 +49,12 @@ export interface TransactionListResponse {
 }
 
 export interface TransactionListParams {
-  page?: number;
-  limit?: number;
-  type?: TransactionType | '';
+  accountId?: string;
+  type?: string;
   category?: string;
   dateFrom?: string;
   dateTo?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
 }

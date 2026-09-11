@@ -7,7 +7,7 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/middleware"
 )
 
-func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler) {
+func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler) {
 	api := app.Group("/api/v1")
 
 	// Health check
@@ -54,4 +54,11 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	reports.Get("/trends", reportHandler.Trends)
 	reports.Get("/categories", reportHandler.Categories)
 	reports.Get("/export", reportHandler.Export)
+
+	// Account routes (protected)
+	accounts := api.Group("/accounts", middleware.AuthRequired())
+	accounts.Get("/", accountHandler.List)
+	accounts.Post("/", accountHandler.Create)
+	accounts.Put("/:id", accountHandler.Update)
+	accounts.Delete("/:id", accountHandler.Delete)
 }

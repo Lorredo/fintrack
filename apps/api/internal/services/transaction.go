@@ -24,10 +24,12 @@ func NewTransactionService(db database.Querier) *TransactionService {
 }
 
 type TransactionFilter struct {
-	Type     string
-	Category string
-	DateFrom string
-	DateTo   string
+	AccountID string
+	Type      string
+	Category  string
+	DateFrom  string
+	DateTo    string
+	Search    string
 }
 
 func (s *TransactionService) List(ctx context.Context, userID string, page, limit int, filter TransactionFilter) (*models.TransactionListResponse, error) {
@@ -43,6 +45,16 @@ func (s *TransactionService) List(ctx context.Context, userID string, page, limi
 	args := []interface{}{userID}
 	argIdx := 2
 
+	if filter.Search != "" {
+		baseQuery += fmt.Sprintf(` AND (description ILIKE $%d OR category ILIKE $%d)`, argIdx, argIdx)
+		args = append(args, "%"+filter.Search+"%")
+		argIdx++
+	}
+	if filter.AccountID != "" {
+		baseQuery += fmt.Sprintf(` AND (account_id = $%d OR transfer_account_id = $%d)`, argIdx, argIdx)
+		args = append(args, filter.AccountID)
+		argIdx++
+	}
 	if filter.Type != "" {
 		baseQuery += fmt.Sprintf(` AND type = $%d`, argIdx)
 		args = append(args, filter.Type)
@@ -72,7 +84,7 @@ func (s *TransactionService) List(ctx context.Context, userID string, page, limi
 	}
 
 	selectQuery := fmt.Sprintf(
-		`SELECT id, user_id, type, amount, category, description, date, created_at, updated_at %s ORDER BY date DESC, created_at DESC LIMIT $%d OFFSET $%d`,
+		`SELECT id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at %s ORDER BY date DESC, created_at DESC LIMIT $%d OFFSET $%d`,
 		baseQuery, argIdx, argIdx+1,
 	)
 	args = append(args, limit, offset)
@@ -87,7 +99,7 @@ func (s *TransactionService) List(ctx context.Context, userID string, page, limi
 	for rows.Next() {
 		var t models.Transaction
 		var dateTime time.Time
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt); err != nil {
 			return nil, err
 		}
 		t.Date = dateTime.Format("2006-01-02")
@@ -110,10 +122,10 @@ func (s *TransactionService) Get(ctx context.Context, id, userID string) (*model
 	var dateTime time.Time
 	err := s.db.QueryRow(
 		ctx,
-		`SELECT id, user_id, type, amount, category, description, date, created_at, updated_at
+		`SELECT id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at
 		 FROM transactions WHERE id = $1 AND user_id = $2`,
 		id, userID,
-	).Scan(&t.ID, &t.UserID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
+	).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -123,15 +135,38 @@ func (s *TransactionService) Get(ctx context.Context, id, userID string) (*model
 }
 
 func (s *TransactionService) Create(ctx context.Context, userID string, req models.CreateTransactionRequest) (*models.Transaction, error) {
+	if req.Type == "expense" || req.Type == "transfer" {
+		var balance float64
+		err := s.db.QueryRow(ctx, `
+			SELECT COALESCE(SUM(
+				CASE 
+					WHEN type = 'income' AND account_id = $2 THEN amount 
+					WHEN type = 'expense' AND account_id = $2 THEN -amount 
+					WHEN type = 'transfer' AND account_id = $2 THEN -amount 
+					WHEN type = 'transfer' AND transfer_account_id = $2 THEN amount 
+					ELSE 0 
+				END
+			), 0) FROM transactions WHERE user_id = $1 AND (account_id = $2 OR transfer_account_id = $2)`,
+			userID, req.AccountID).Scan(&balance)
+		
+		if err != nil {
+			return nil, err
+		}
+		
+		if req.Amount > balance {
+			return nil, fmt.Errorf("insufficient balance in source account")
+		}
+	}
+
 	var t models.Transaction
 	var dateTime time.Time
 	err := s.db.QueryRow(
 		ctx,
-		`INSERT INTO transactions (user_id, type, amount, category, description, date)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, user_id, type, amount, category, description, date, created_at, updated_at`,
-		userID, req.Type, req.Amount, req.Category, req.Description, req.Date,
-	).Scan(&t.ID, &t.UserID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
+		`INSERT INTO transactions (user_id, account_id, transfer_account_id, type, amount, category, description, date)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at`,
+		userID, req.AccountID, req.TransferAccountID, req.Type, req.Amount, req.Category, req.Description, req.Date,
+	).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -141,11 +176,20 @@ func (s *TransactionService) Create(ctx context.Context, userID string, req mode
 }
 
 func (s *TransactionService) Update(ctx context.Context, id, userID string, req models.UpdateTransactionRequest) (*models.Transaction, error) {
-	// Build dynamic update query
 	setClauses := []string{}
 	args := []interface{}{}
 	argIdx := 1
 
+	if req.AccountID != "" {
+		setClauses = append(setClauses, fmt.Sprintf("account_id = $%d", argIdx))
+		args = append(args, req.AccountID)
+		argIdx++
+	}
+	if req.TransferAccountID != nil {
+		setClauses = append(setClauses, fmt.Sprintf("transfer_account_id = $%d", argIdx))
+		args = append(args, *req.TransferAccountID)
+		argIdx++
+	}
 	if req.Type != "" {
 		setClauses = append(setClauses, fmt.Sprintf("type = $%d", argIdx))
 		args = append(args, req.Type)
@@ -180,7 +224,7 @@ func (s *TransactionService) Update(ctx context.Context, id, userID string, req 
 	args = append(args, id, userID)
 
 	query := fmt.Sprintf(
-		`UPDATE transactions SET %s WHERE id = $%d AND user_id = $%d RETURNING id, user_id, type, amount, category, description, date, created_at, updated_at`,
+		`UPDATE transactions SET %s WHERE id = $%d AND user_id = $%d RETURNING id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at`,
 		joinStrings(setClauses, ", "),
 		argIdx, argIdx+1,
 	)
@@ -188,7 +232,7 @@ func (s *TransactionService) Update(ctx context.Context, id, userID string, req 
 	var t models.Transaction
 	var dateTime time.Time
 	err := s.db.QueryRow(ctx, query, args...).Scan(
-		&t.ID, &t.UserID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt,
+		&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt,
 	)
 
 	if err != nil {
