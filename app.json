@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "103514b5-9d86-4f32-868a-304ee3194101"
+      }
+    },
+    "android": {
+      "package": "com.arteml.financetracker"
+    }
+  }
+}

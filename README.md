@@ -10,7 +10,11 @@ A production-grade Personal Finance and Budget Tracker built with:
 
 ## Architecture
 
-Monorepo
+This project is a monorepo utilizing a modern, decoupled architecture:
+
+- **Frontend (Mobile):** React Native & Expo
+- **Backend API:** Go (Fiber), containerized via Docker and deployed as a Web Service on **Render**.
+- **Database:** PostgreSQL hosted on **Neon** for serverless scaling and database branching.
 
 ## Status
 
@@ -62,7 +66,10 @@ Monorepo
 | | CSV export for any month | ✅ |
 | | Mobile reports screen with tabbed views | ✅ |
 | **8** | **Settings** | ❌ Not Started |
-| **9** | **Production** | ❌ Not Started |
+| **9** | **Production** | 🔄 In Progress |
+| | Backend Deployment (Render) | ✅ |
+| | Database Hosting (Neon) | ✅ |
+| | Mobile App Publishing | ❌ |
 
 ## Suggested Next Steps
 
@@ -72,7 +79,7 @@ Monorepo
 4. ~~__Implement Budgets__ - Set monthly budgets by category, track spending progress~~ ✅
 5. ~~__Implement Reports__ - Monthly trends, category breakdowns, export~~ ✅
 6. __Add a migration runner__ to the Go backend
-7. __Production readiness__ - Error monitoring, CI/CD, deployment
+7. __Production readiness__ - Error monitoring and Mobile app store deployment (Backend already on Render)
 
 ## Quick Start
 

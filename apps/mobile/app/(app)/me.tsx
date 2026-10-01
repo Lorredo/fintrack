@@ -3,6 +3,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useWipeData } from "@/features/auth/hooks/useWipeData";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { Screen } from "@/components/ui";
 
@@ -20,6 +21,31 @@ export default function MeScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logoutMutation = useLogout();
+  const wipeDataMutation = useWipeData();
+
+  const handleWipeData = () => {
+    Alert.alert(
+      "Wipe All Data",
+      "Are you absolutely sure you want to delete all your transactions, budgets, and accounts? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Wipe Data",
+          style: "destructive",
+          onPress: () => {
+            wipeDataMutation.mutate(undefined, {
+              onSuccess: () => {
+                Alert.alert("Success", "All your financial data has been wiped.");
+              },
+              onError: (error) => {
+                Alert.alert("Error", "Failed to wipe data: " + error.message);
+              }
+            });
+          },
+        },
+      ],
+    );
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -142,8 +168,32 @@ export default function MeScreen() {
         FinTrack v1.1.0
       </Text>
 
-      {/* Logout */}
-      <View style={{ marginTop: 'auto' }}>
+      {/* Danger Zone */}
+      <View style={{ marginTop: 'auto', gap: 12 }}>
+        <Pressable
+          onPress={handleWipeData}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1.5,
+            borderColor: '#FEE2E2',
+            borderRadius: 14,
+            paddingVertical: 14,
+            gap: 8,
+            backgroundColor: '#fff',
+          }}
+        >
+          {wipeDataMutation.isPending ? (
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#EF4444' }}>Wiping Data...</Text>
+          ) : (
+            <>
+              <MaterialCommunityIcons name="delete-alert-outline" size={18} color="#EF4444" />
+              <Text style={{ fontSize: 15, fontWeight: '600', color: '#EF4444' }}>Wipe All Data</Text>
+            </>
+          )}
+        </Pressable>
+
         <Pressable
           onPress={handleLogout}
           style={{
