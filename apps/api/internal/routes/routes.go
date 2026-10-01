@@ -27,6 +27,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 
 	auth.Post("/logout", middleware.AuthRequired(), authHandler.Logout)
 	auth.Get("/me", middleware.AuthRequired(), authHandler.Me)
+	auth.Delete("/wipe-data", middleware.AuthRequired(), authHandler.WipeData)
 
 	// Transaction routes (protected)
 	transactions := api.Group("/transactions", middleware.AuthRequired())

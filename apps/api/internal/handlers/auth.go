@@ -237,3 +237,46 @@ func (h *AuthHandler) generateToken(userID string, expiry time.Duration) (string
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(h.jwtSecret))
 }
+
+func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	ctx := context.Background()
+
+	// Start a database transaction
+	tx, err := database.Pool.Begin(ctx)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
+			Error: "Failed to start transaction",
+		})
+	}
+	defer tx.Rollback(ctx)
+
+	// Delete in reverse order of dependency
+	if _, err := tx.Exec(ctx, `DELETE FROM transactions WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
+			Error: "Failed to delete transactions",
+		})
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM budgets WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
+			Error: "Failed to delete budgets",
+		})
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM accounts WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
+			Error: "Failed to delete accounts",
+		})
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
+			Error: "Failed to commit transaction",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"message": "All financial data has been wiped successfully",
+	})
+}
