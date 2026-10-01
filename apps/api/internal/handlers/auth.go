@@ -245,34 +245,34 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 	// Start a database transaction
 	tx, err := database.Pool.Begin(ctx)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to start transaction",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to start transaction",
 		})
 	}
 	defer tx.Rollback(ctx)
 
 	// Delete in reverse order of dependency
 	if _, err := tx.Exec(ctx, `DELETE FROM transactions WHERE user_id = $1`, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to delete transactions",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete transactions",
 		})
 	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM budgets WHERE user_id = $1`, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to delete budgets",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete budgets",
 		})
 	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM accounts WHERE user_id = $1`, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to delete accounts",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete accounts",
 		})
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to commit transaction",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to commit transaction",
 		})
 	}
 
