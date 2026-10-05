@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -165,7 +166,7 @@ func (s *BudgetService) Rebalance(ctx context.Context, userID string, req models
 	}
 	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec(
+	result, err := tx.Exec(
 		ctx,
 		`UPDATE budgets SET amount = amount - $1, updated_at = NOW() WHERE id = $2 AND user_id = $3 AND amount >= $1`,
 		req.Amount, req.FromBudgetID, userID,
@@ -173,14 +174,20 @@ func (s *BudgetService) Rebalance(ctx context.Context, userID string, req models
 	if err != nil {
 		return err
 	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("insufficient funds in source budget or budget not found")
+	}
 
-	_, err = tx.Exec(
+	result, err = tx.Exec(
 		ctx,
 		`UPDATE budgets SET amount = amount + $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
 		req.Amount, req.ToBudgetID, userID,
 	)
 	if err != nil {
 		return err
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("target budget not found")
 	}
 
 	return tx.Commit(ctx)
