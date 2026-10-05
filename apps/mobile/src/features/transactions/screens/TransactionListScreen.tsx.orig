@@ -1,10 +1,11 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl, ScrollView } from 'react-native';
+import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen, Loader, EmptyState, Button, CategoryIcon, ExpandableFAB, Modal } from '@/components/ui';
 import { useTransactionList, useDeleteTransaction, useTransactionCategories } from '../hooks/useTransactions';
+
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { Transaction } from '../types';
@@ -15,19 +16,16 @@ type FilterTab = 'all' | 'income' | 'expense';
 export default function TransactionListScreen() {
   const router = useRouter();
   const setEditingTransaction = useUIStore((state) => state.setEditingTransaction);
-  const deleteMutation = useDeleteTransaction();
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [refreshing, setRefreshing] = useState(false);
-
-  // Advanced Filters
   const [showFilters, setShowFilters] = useState(false);
-  const [filterAccountId, setFilterAccountId] = useState<string>('');
-  const [filterCategory, setFilterCategory] = useState<string>('');
-  const [filterDateRange, setFilterDateRange] = useState<'this_month' | 'last_month' | 'all_time'>('this_month');
+  const [filterAccountId, setFilterAccountId] = useState<string | undefined>();
+  const [filterCategory, setFilterCategory] = useState<string | undefined>();
+  const [filterDateRange, setFilterDateRange] = useState<'all' | 'this_month' | 'last_month'>('all');
 
   // Debounce search input
   useEffect(() => {
@@ -50,46 +48,76 @@ export default function TransactionListScreen() {
     dateTo = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
   }
 
-  const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories();
-  const { data: accounts } = useAccounts();
+  const { data: userCategories } = useTransactionCategories();
   const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
     page,
     limit: 20,
     type: activeFilter === 'all' ? undefined : activeFilter,
     search: debouncedSearch || undefined,
-    accountId: filterAccountId || undefined,
-    category: filterCategory || undefined,
+    accountId: filterAccountId,
+    category: filterCategory,
     dateFrom,
     dateTo,
   });
 
-  const transactions = data?.data || [];
+  const deleteMutation = useDeleteTransaction();
+  const { data: accounts } = useAccounts();
+
+  const transactions = useMemo(() => data?.data || [], [data]);
   const totalPages = data?.totalPages || 1;
 
-  const handleRefresh = useCallback(() => {
+  const handleEdit = useCallback(
+    (transaction: Transaction) => {
+      setEditingTransaction(transaction);
+      router.push('/transaction-form');
+    },
+    [setEditingTransaction, router]
+  );
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
+      ]);
+    },
+    [deleteMutation]
+  );
+
+
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    refetch().finally(() => setRefreshing(false));
+    setPage(1);
+    await refetch();
+    setRefreshing(false);
   }, [refetch]);
 
-  const handleEdit = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    router.push('/transaction-form');
-  };
-
-  const handleDelete = (id: string) => {
-    Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
-    ]);
-  };
-
-  const filterTabs: { label: string; key: FilterTab }[] = [
-    { label: 'All', key: 'all' },
-    { label: 'Income', key: 'income' },
-    { label: 'Expense', key: 'expense' },
+  const filterTabs: { key: FilterTab; label: string }[] = [
+    { key: 'all', label: 'All' },
+    { key: 'income', label: 'Income' },
+    { key: 'expense', label: 'Expense' },
   ];
 
-  const hasActiveFilters = filterAccountId !== '' || filterCategory !== '' || filterDateRange !== 'this_month';
+  const hasActiveFilters = !!filterAccountId || !!filterCategory || filterDateRange !== 'all';
+
+  if (isLoading) {
+    return (
+      <Screen>
+        <Loader />
+      </Screen>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Screen>
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-text-secondary mb-md">Failed to load transactions</Text>
+          <Button title="Retry" onPress={() => refetch()} />
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -100,9 +128,10 @@ export default function TransactionListScreen() {
         </View>
 
         {/* Search Bar & Filter */}
-        <View style={{ marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           <View
             style={{
+              flex: 1,
               flexDirection: 'row',
               alignItems: 'center',
               backgroundColor: '#fff',
@@ -126,25 +155,39 @@ export default function TransactionListScreen() {
               autoCapitalize="none"
             />
             {search.length > 0 && (
-              <Pressable onPress={() => setSearch('')} style={{ marginRight: 8 }}>
+              <Pressable onPress={() => setSearch('')}>
                 <MaterialCommunityIcons name="close-circle" size={18} color="#D1D5DB" />
               </Pressable>
             )}
-            
-            <Pressable
-              onPress={() => setShowFilters(true)}
-              style={{
-                padding: 6,
-                backgroundColor: hasActiveFilters ? '#EFF6FF' : 'transparent',
-                borderRadius: 8,
-              }}
-            >
-              <MaterialCommunityIcons name="tune-variant" size={20} color={hasActiveFilters ? '#2563EB' : '#6B7280'} />
-              {hasActiveFilters && (
-                <View style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
-              )}
-            </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => setShowFilters(true)}
+            style={{
+              width: 44,
+              height: 44,
+              backgroundColor: hasActiveFilters ? '#EFF6FF' : '#fff',
+              borderRadius: 16,
+              alignItems: 'center',
+              justifyContent: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.06,
+              shadowRadius: 6,
+              elevation: 2,
+              borderWidth: hasActiveFilters ? 1 : 0,
+              borderColor: '#2563EB',
+            }}
+          >
+            <MaterialCommunityIcons 
+              name="filter-variant" 
+              size={22} 
+              color={hasActiveFilters ? '#2563EB' : '#6B7280'} 
+            />
+            {hasActiveFilters && (
+              <View style={{ position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />
+            )}
+          </Pressable>
         </View>
 
         {/* Filter Tabs */}
@@ -273,51 +316,53 @@ export default function TransactionListScreen() {
         </Pressable>
       )}
 
-      {/* Filter Modal */}
-      <Modal visible={showFilters} onClose={() => setShowFilters(false)} title="Advanced Filters">
-        <View style={{ padding: 20 }}>
-          {/* Date Range */}
-          <View style={{ marginBottom: 24 }}>
+      {/* Filters Modal */}
+      <Modal
+        visible={showFilters}
+        onClose={() => setShowFilters(false)}
+        title="Filter Transactions"
+      >
+        <View style={{ gap: 24 }}>
+          {/* Date Filter */}
+          <View>
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 12 }}>Time Period</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {[
-                { label: 'This Month', value: 'this_month' },
-                { label: 'Last Month', value: 'last_month' },
-                { label: 'All Time', value: 'all_time' },
-              ].map((opt) => (
+              {(['all', 'this_month', 'last_month'] as const).map((range) => (
                 <Pressable
-                  key={opt.value}
-                  onPress={() => { setFilterDateRange(opt.value as any); setPage(1); }}
+                  key={range}
+                  onPress={() => { setFilterDateRange(range); setPage(1); }}
                   style={{
-                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                    backgroundColor: filterDateRange === opt.value ? '#2563EB' : '#F3F4F6',
+                    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
+                    backgroundColor: filterDateRange === range ? '#2563EB' : '#F3F4F6',
                   }}
                 >
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: filterDateRange === opt.value ? '#fff' : '#4B5563' }}>{opt.label}</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '500', color: filterDateRange === range ? '#fff' : '#4B5563' }}>
+                    {range === 'all' ? 'All Time' : range === 'this_month' ? 'This Month' : 'Last Month'}
+                  </Text>
                 </Pressable>
               ))}
             </View>
           </View>
 
-          {/* Wallet */}
-          <View style={{ marginBottom: 24 }}>
+          {/* Wallet Filter */}
+          <View>
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 12 }}>Wallet</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <Pressable
-                onPress={() => { setFilterAccountId(''); setPage(1); }}
+                onPress={() => { setFilterAccountId(undefined); setPage(1); }}
                 style={{
-                  paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                  backgroundColor: filterAccountId === '' ? '#2563EB' : '#F3F4F6',
+                  paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
+                  backgroundColor: !filterAccountId ? '#2563EB' : '#F3F4F6',
                 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: '500', color: filterAccountId === '' ? '#fff' : '#4B5563' }}>All Wallets</Text>
+                <Text style={{ fontSize: 13, fontWeight: '500', color: !filterAccountId ? '#fff' : '#4B5563' }}>All Wallets</Text>
               </Pressable>
               {accounts?.map((acc) => (
                 <Pressable
                   key={acc.id}
                   onPress={() => { setFilterAccountId(acc.id); setPage(1); }}
                   style={{
-                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
                     backgroundColor: filterAccountId === acc.id ? '#2563EB' : '#F3F4F6',
                   }}
                 >
@@ -327,19 +372,14 @@ export default function TransactionListScreen() {
             </View>
           </View>
 
-          {/* Category */}
-          <View style={{ marginBottom: 32 }}>
+          {/* Category Filter */}
+          <View>
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 12 }}>Category</Text>
-            {categoriesLoading ? (
-              <Text style={{ fontSize: 13, color: '#6B7280' }}>Loading categories...</Text>
-            ) : categoriesError ? (
-              <Text style={{ fontSize: 13, color: '#EF4444' }}>Error: Did you restart the Go API?</Text>
-            ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <Pressable
-                onPress={() => { setFilterCategory(''); setPage(1); }}
+                onPress={() => { setFilterCategory(undefined); setPage(1); }}
                 style={{
-                  paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                  paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999,
                   backgroundColor: !filterCategory ? '#2563EB' : '#F3F4F6',
                 }}
               >
@@ -362,19 +402,26 @@ export default function TransactionListScreen() {
                 </Pressable>
               ))}
             </View>
-            )}
           </View>
 
-          <Button 
-            title="Reset Filters" 
-            variant="outline" 
-            onPress={() => {
-              setFilterAccountId('');
-              setFilterCategory('');
-              setFilterDateRange('this_month');
-              setPage(1);
-            }} 
-          />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Button 
+                title="Reset" 
+                variant="outline" 
+                onPress={() => {
+                  setFilterAccountId(undefined);
+                  setFilterCategory(undefined);
+                  setFilterDateRange('all');
+                  setPage(1);
+                  setShowFilters(false);
+                }} 
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Apply Filters" onPress={() => setShowFilters(false)} />
+            </View>
+          </View>
         </View>
       </Modal>
 

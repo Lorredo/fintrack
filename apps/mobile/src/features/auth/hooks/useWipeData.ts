@@ -6,7 +6,7 @@ export function useWipeData() {
 
   return useMutation({
     mutationFn: async () => {
-      const response = await api.delete('/auth/wipe-data');
+      const response = await api.delete('/api/v1/auth/wipe-data');
       return response.data;
     },
     onSuccess: () => {

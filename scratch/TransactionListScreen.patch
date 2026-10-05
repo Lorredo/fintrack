@@ -1,0 +1,62 @@
+--- apps/mobile/src/features/transactions/screens/TransactionListScreen.tsx
++++ apps/mobile/src/features/transactions/screens/TransactionListScreen.tsx
+@@ -130,5 +130,5 @@
+ 
+         {/* Search Bar & Filter */}
+-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
++        <View style={{ marginBottom: 12 }}>
+           <View
+             style={{
+@@ -156,36 +156,22 @@
+             />
+             {search.length > 0 && (
+-              <Pressable onPress={() => setSearch('')}>
++              <Pressable onPress={() => setSearch('')} style={{ marginRight: 8 }}>
+                 <MaterialCommunityIcons name="close-circle" size={18} color="#D1D5DB" />
+               </Pressable>
+             )}
+-          </View>
+-
+-          <Pressable
+-            onPress={() => setShowFilters(true)}
+-            style={{
+-              width: 44,
+-              height: 44,
+-              backgroundColor: hasActiveFilters ? '#EFF6FF' : '#fff',
+-              borderRadius: 16,
+-              alignItems: 'center',
+-              justifyContent: 'center',
+-              shadowColor: '#000',
+-              shadowOffset: { width: 0, height: 1 },
+-              shadowOpacity: 0.06,
+-              shadowRadius: 6,
+-              elevation: 2,
+-              borderWidth: hasActiveFilters ? 1 : 0,
+-              borderColor: '#2563EB',
+-            }}
+-          >
+-            <MaterialCommunityIcons 
+-              name="tune-variant" 
+-              size={22} 
+-              color={hasActiveFilters ? '#2563EB' : '#4B5563'} 
+-            />
+-            {hasActiveFilters && (
+-              <View style={{ position: 'absolute', top: 10, right: 10, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
+-            )}
+-          </Pressable>
++            
++            <Pressable
++              onPress={() => setShowFilters(true)}
++              style={{
++                padding: 6,
++                backgroundColor: hasActiveFilters ? '#EFF6FF' : 'transparent',
++                borderRadius: 8,
++              }}
++            >
++              <MaterialCommunityIcons name="tune-variant" size={20} color={hasActiveFilters ? '#2563EB' : '#6B7280'} />
++              {hasActiveFilters && (
++                <View style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
++              )}
++            </Pressable>
++          </View>
+         </View>

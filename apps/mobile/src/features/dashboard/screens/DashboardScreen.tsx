@@ -259,7 +259,7 @@ export default function DashboardScreen() {
       </View>
 
       {/* Spending Chart */}
-      {summary.categoryBreakdown?.length > 0 && (
+      {summary.categoryBreakdown?.filter(c => c.type === 'expense').length > 0 && (
         <View
           style={{
             backgroundColor: '#fff',
@@ -278,9 +278,11 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="chart-bar" size={18} color="#9CA3AF" />
           </View>
           <Text style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 16 }}>By category</Text>
-          <MonthlySpendingChart data={summary.categoryBreakdown} />
+          <MonthlySpendingChart data={summary.categoryBreakdown.filter(c => c.type === 'expense')} />
         </View>
       )}
+
+
 
       {/* Recent Transactions */}
       {summary.recentTransactions.length > 0 && (
@@ -357,9 +359,9 @@ function MonthlySpendingChart({ data }: { data: { category: string; total: numbe
   const colors = ['#2563EB', '#7C3AED', '#22C55E', '#F59E0B', '#EF4444', '#06B6D4'];
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 120, gap: 8 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 160, gap: 8 }}>
       {data.slice(0, 6).map((item, index) => {
-        const height = (item.total / maxTotal) * 90;
+        const height = (item.total / maxTotal) * 80;
         const color = colors[index % colors.length];
         return (
           <View key={index} style={{ flex: 1, alignItems: 'center' }}>
@@ -378,16 +380,24 @@ function MonthlySpendingChart({ data }: { data: { category: string; total: numbe
             />
             <MaterialCommunityIcons
               name={getCategoryIcon(item.category)}
-              size={13}
+              size={14}
               color={color}
               style={{ marginTop: 6 }}
             />
+            <Text 
+              style={{ fontSize: 9, color: '#6B7280', marginTop: 4, textAlign: 'center', width: '100%' }} 
+              numberOfLines={2}
+            >
+              {item.category}
+            </Text>
           </View>
         );
       })}
     </View>
   );
 }
+
+
 
 function TransactionRow({ transaction, accounts }: { transaction: Transaction; accounts?: Account[] }) {
   const isExpense = transaction.type === 'expense';

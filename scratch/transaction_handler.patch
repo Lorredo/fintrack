@@ -1,0 +1,16 @@
+
+// Categories returns a list of distinct categories used by the user.
+func (h *TransactionHandler) Categories(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+
+	categories, err := h.service.GetDistinctCategories(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to fetch categories",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": categories,
+	})
+}

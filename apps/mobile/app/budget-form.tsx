@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/components/ui';
@@ -24,13 +24,20 @@ export default function BudgetFormScreen() {
 
   const handleSubmit = useCallback(
     (data: CreateBudgetInput | UpdateBudgetInput) => {
+      const onError = (error: any) => {
+        const message = error.response?.data?.message || 'Failed to save budget';
+        Alert.alert('Error', message);
+      };
+
       if ('id' in data) {
         updateMutation.mutate(data as UpdateBudgetInput, {
           onSuccess: handleClose,
+          onError,
         });
       } else {
         createMutation.mutate(data as CreateBudgetInput, {
           onSuccess: handleClose,
+          onError,
         });
       }
     },

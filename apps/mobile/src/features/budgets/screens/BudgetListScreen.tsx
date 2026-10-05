@@ -21,7 +21,7 @@ export default function BudgetListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const currentDate = new Date().toISOString().split('T')[0];
 
-  const { data, isLoading, isError, refetch, isRefetching } = useBudgetList(currentDate);
+  const { data, isLoading, isError, refetch, isRefetching } = useBudgetList();
   const deleteMutation = useDeleteBudget();
 
   const budgets = data?.data ?? [];

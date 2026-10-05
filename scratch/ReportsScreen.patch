@@ -1,7 +1,6 @@
 import { useCallback, useState, useMemo } from 'react';
 import { View, Text, ScrollView, RefreshControl, Alert, Share, Platform, Pressable } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Screen, Loader, Button, ProgressBar, Modal } from '@/components/ui';
 import { useTrends, useCategoryComparison } from '../hooks/useReports';
@@ -23,8 +22,6 @@ export default function ReportsScreen() {
 
   const [showFilters, setShowFilters] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ReportFilters>(filters);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
 
   const { data: accounts } = useAccounts();
   const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends, isRefetching: trendsRefetching } = useTrends(filters);
@@ -56,53 +53,47 @@ export default function ReportsScreen() {
     }
   }, [filters]);
 
-  const getLocalISODate = (d: Date) => {
-    const dt = new Date(d);
-    dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
-    return dt.toISOString().split('T')[0];
-  };
-
   const setDateRange = (range: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_year' | 'all_time') => {
     const d = new Date();
     let start, end;
     switch(range) {
       case 'today':
-        start = getLocalISODate(d);
+        start = d.toISOString().split('T')[0];
         end = start;
         break;
       case 'yesterday':
         d.setDate(d.getDate() - 1);
-        start = getLocalISODate(d);
+        start = d.toISOString().split('T')[0];
         end = start;
         break;
       case 'this_week':
         const day = d.getDay();
         const diff = d.getDate() - day + (day == 0 ? -6 : 1); 
-        start = getLocalISODate(new Date(d.setDate(diff)));
-        end = getLocalISODate(new Date(new Date(start).setDate(new Date(start).getDate() + 6)));
+        start = new Date(d.setDate(diff)).toISOString().split('T')[0];
+        end = new Date(new Date(start).setDate(new Date(start).getDate() + 6)).toISOString().split('T')[0];
         break;
       case 'last_week':
         const lw = new Date();
         const lwDay = lw.getDay();
         const lwDiff = lw.getDate() - lwDay + (lwDay == 0 ? -6 : 1) - 7;
-        start = getLocalISODate(new Date(lw.setDate(lwDiff)));
-        end = getLocalISODate(new Date(new Date(start).setDate(new Date(start).getDate() + 6)));
+        start = new Date(lw.setDate(lwDiff)).toISOString().split('T')[0];
+        end = new Date(new Date(start).setDate(new Date(start).getDate() + 6)).toISOString().split('T')[0];
         break;
       case 'this_month':
-        start = getLocalISODate(new Date(d.getFullYear(), d.getMonth(), 1));
-        end = getLocalISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+        start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+        end = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
         break;
       case 'last_month':
-        start = getLocalISODate(new Date(d.getFullYear(), d.getMonth() - 1, 1));
-        end = getLocalISODate(new Date(d.getFullYear(), d.getMonth(), 0));
+        start = new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split('T')[0];
+        end = new Date(d.getFullYear(), d.getMonth(), 0).toISOString().split('T')[0];
         break;
       case 'this_year':
-        start = getLocalISODate(new Date(d.getFullYear(), 0, 1));
-        end = getLocalISODate(new Date(d.getFullYear(), 11, 31));
+        start = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
+        end = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
         break;
       case 'all_time':
         start = '2000-01-01';
-        end = getLocalISODate(new Date(d.getFullYear() + 1, 0, 1));
+        end = new Date(d.getFullYear() + 1, 0, 1).toISOString().split('T')[0];
         break;
     }
     setDraftFilters({ ...draftFilters, startDate: start, endDate: end });
@@ -265,41 +256,16 @@ export default function ReportsScreen() {
                   today: 'Today', yesterday: 'Yesterday', this_week: 'This Week', last_week: 'Last Week',
                   this_month: 'This Month', last_month: 'Last Month', this_year: 'This Year', all_time: 'All Time'
                 };
-                
-                const d = new Date();
-                let rStart = '', rEnd = '';
-                switch(range) {
-                  case 'today': rStart = getLocalISODate(d); rEnd = rStart; break;
-                  case 'yesterday': d.setDate(d.getDate() - 1); rStart = getLocalISODate(d); rEnd = rStart; break;
-                  case 'this_week': {
-                    const day = d.getDay(); const diff = d.getDate() - day + (day == 0 ? -6 : 1);
-                    rStart = getLocalISODate(new Date(d.setDate(diff)));
-                    rEnd = getLocalISODate(new Date(new Date(rStart).setDate(new Date(rStart).getDate() + 6)));
-                    break;
-                  }
-                  case 'last_week': {
-                    const lw = new Date(); const lwDay = lw.getDay(); const lwDiff = lw.getDate() - lwDay + (lwDay == 0 ? -6 : 1) - 7;
-                    rStart = getLocalISODate(new Date(lw.setDate(lwDiff)));
-                    rEnd = getLocalISODate(new Date(new Date(rStart).setDate(new Date(rStart).getDate() + 6)));
-                    break;
-                  }
-                  case 'this_month': rStart = getLocalISODate(new Date(d.getFullYear(), d.getMonth(), 1)); rEnd = getLocalISODate(new Date(d.getFullYear(), d.getMonth() + 1, 0)); break;
-                  case 'last_month': rStart = getLocalISODate(new Date(d.getFullYear(), d.getMonth() - 1, 1)); rEnd = getLocalISODate(new Date(d.getFullYear(), d.getMonth(), 0)); break;
-                  case 'this_year': rStart = getLocalISODate(new Date(d.getFullYear(), 0, 1)); rEnd = getLocalISODate(new Date(d.getFullYear(), 11, 31)); break;
-                  case 'all_time': rStart = '2000-01-01'; rEnd = getLocalISODate(new Date(d.getFullYear() + 1, 0, 1)); break;
-                }
-                const isActive = draftFilters.startDate === rStart && draftFilters.endDate === rEnd;
-
                 return (
                   <Pressable
                     key={range}
                     onPress={() => setDateRange(range as any)}
                     style={{
                       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                      backgroundColor: isActive ? '#2563EB' : '#F3F4F6',
+                      backgroundColor: '#F3F4F6',
                     }}
                   >
-                    <Text style={{ fontSize: 13, fontWeight: '500', color: isActive ? '#fff' : '#4B5563' }}>{labels[range]}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '500', color: '#4B5563' }}>{labels[range]}</Text>
                   </Pressable>
                 );
               })}
@@ -307,28 +273,6 @@ export default function ReportsScreen() {
             <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
               Selected: {draftFilters.startDate === '2000-01-01' ? 'All Time' : `${draftFilters.startDate} to ${draftFilters.endDate}`}
             </Text>
-
-            {/* Custom Date Range */}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>Start Date</Text>
-                <Pressable
-                  onPress={() => setShowStartDatePicker(true)}
-                  style={{ padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}
-                >
-                  <Text style={{ fontSize: 13, color: '#111827' }}>{draftFilters.startDate}</Text>
-                </Pressable>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>End Date</Text>
-                <Pressable
-                  onPress={() => setShowEndDatePicker(true)}
-                  style={{ padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}
-                >
-                  <Text style={{ fontSize: 13, color: '#111827' }}>{draftFilters.endDate}</Text>
-                </Pressable>
-              </View>
-            </View>
           </View>
 
           {/* Wallet */}
@@ -400,29 +344,6 @@ export default function ReportsScreen() {
             </View>
           </View>
         </View>
-
-        {showStartDatePicker && (
-          <DateTimePicker
-            value={new Date(draftFilters.startDate === '2000-01-01' ? new Date().toISOString().split('T')[0] : draftFilters.startDate)}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowStartDatePicker(Platform.OS === 'ios');
-              if (selectedDate) setDraftFilters({ ...draftFilters, startDate: getLocalISODate(selectedDate) });
-            }}
-          />
-        )}
-        {showEndDatePicker && (
-          <DateTimePicker
-            value={new Date(draftFilters.endDate)}
-            mode="date"
-            display="default"
-            onChange={(event, selectedDate) => {
-              setShowEndDatePicker(Platform.OS === 'ios');
-              if (selectedDate) setDraftFilters({ ...draftFilters, endDate: getLocalISODate(selectedDate) });
-            }}
-          />
-        )}
       </Modal>
     </Screen>
   );

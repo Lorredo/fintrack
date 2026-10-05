@@ -8,6 +8,11 @@ export interface CategorySummary {
   count: number;
 }
 
+export interface DailySpending {
+  date: string;
+  total: number;
+}
+
 export interface DashboardSummary {
   totalIncome: number;
   totalExpense: number;
@@ -15,6 +20,7 @@ export interface DashboardSummary {
   recentTransactions: Transaction[];
   categoryBreakdown: CategorySummary[];
   activeBudgets: Budget[];
+  dailySpending: DailySpending[];
 }
 export interface DashboardSummaryResponse {
   message: string;

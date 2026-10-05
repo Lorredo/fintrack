@@ -50,7 +50,7 @@ export default function TransactionListScreen() {
     dateTo = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
   }
 
-  const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories();
+  const { data: userCategories } = useTransactionCategories();
   const { data: accounts } = useAccounts();
   const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
     page,
@@ -64,7 +64,7 @@ export default function TransactionListScreen() {
   });
 
   const transactions = data?.data || [];
-  const totalPages = data?.totalPages || 1;
+  const totalPages = data?.pagination?.totalPages || 1;
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
@@ -92,8 +92,8 @@ export default function TransactionListScreen() {
   const hasActiveFilters = filterAccountId !== '' || filterCategory !== '' || filterDateRange !== 'this_month';
 
   return (
-    <Screen>
-      <View style={{ flex: 1 }}>
+    <Screen edges={['top']}>
+      <View style={{ flex: 1, paddingHorizontal: 20 }}>
         {/* Header */}
         <View style={{ paddingTop: 16, paddingBottom: 12 }}>
           <Text style={{ fontSize: 26, fontWeight: '700', color: '#111827', letterSpacing: -0.5 }}>Transactions</Text>
@@ -330,11 +330,6 @@ export default function TransactionListScreen() {
           {/* Category */}
           <View style={{ marginBottom: 32 }}>
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 12 }}>Category</Text>
-            {categoriesLoading ? (
-              <Text style={{ fontSize: 13, color: '#6B7280' }}>Loading categories...</Text>
-            ) : categoriesError ? (
-              <Text style={{ fontSize: 13, color: '#EF4444' }}>Error: Did you restart the Go API?</Text>
-            ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <Pressable
                 onPress={() => { setFilterCategory(''); setPage(1); }}
@@ -362,7 +357,6 @@ export default function TransactionListScreen() {
                 </Pressable>
               ))}
             </View>
-            )}
           </View>
 
           <Button 

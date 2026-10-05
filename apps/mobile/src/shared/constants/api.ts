@@ -7,6 +7,7 @@ export const API_ENDPOINTS = {
     ME: '/api/v1/auth/me',
   },
   TRANSACTIONS: {
+    CATEGORIES: '/api/v1/transactions/categories/all',
     LIST: '/api/v1/transactions',
     DETAIL: (id: string) => `/api/v1/transactions/${id}`,
     CREATE: '/api/v1/transactions',

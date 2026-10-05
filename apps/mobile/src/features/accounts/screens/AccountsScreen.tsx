@@ -160,7 +160,7 @@ export default function AccountsScreen() {
         contentContainerStyle={{ gap: 12, paddingBottom: 100 }}
         renderItem={({ item }) => (
           <View className="bg-surface p-md rounded-2xl border border-border flex-row items-center justify-between">
-            <View className="flex-row items-center gap-md">
+            <View className="flex-1 flex-row items-center gap-md mr-2">
               <View style={{ backgroundColor: (item.color || '#2563EB') + '20' }} className="w-12 h-12 rounded-full items-center justify-center">
                 <Ionicons
                   name={
@@ -172,8 +172,8 @@ export default function AccountsScreen() {
                   color={item.color || "#2563EB"}
                 />
               </View>
-              <View>
-                <Text className="text-h3 font-bold text-text">{item.name}</Text>
+              <View className="flex-1">
+                <Text className="text-h3 font-bold text-text" numberOfLines={1}>{item.name}</Text>
                 <Text className="text-sm text-text-secondary capitalize">{item.type}</Text>
               </View>
             </View>

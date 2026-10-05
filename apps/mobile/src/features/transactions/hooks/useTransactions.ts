@@ -18,7 +18,15 @@ export const TRANSACTION_KEYS = {
 const RELATED_QUERY_KEYS = [
   ['budgets'],
   ['dashboard'],
+  ['accounts'],
 ] as const;
+
+export function useTransactionCategories() {
+  return useQuery({
+    queryKey: [...TRANSACTION_KEYS.all, 'categories'],
+    queryFn: () => TransactionApi.getCategories(),
+  });
+}
 
 export function useTransactionList(params?: TransactionListParams) {
   return useQuery({
@@ -43,8 +51,7 @@ export function useCreateTransaction() {
     mutationFn: (input: CreateTransactionInput) => TransactionApi.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
+      RELATED_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
     },
   });
 }
@@ -56,8 +63,7 @@ export function useUpdateTransaction() {
     mutationFn: (input: UpdateTransactionInput) => TransactionApi.update(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
+      RELATED_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
     },
   });
 }
@@ -69,8 +75,7 @@ export function useDeleteTransaction() {
     mutationFn: (id: string) => TransactionApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRANSACTION_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[0] });
-      queryClient.invalidateQueries({ queryKey: RELATED_QUERY_KEYS[1] });
+      RELATED_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
     },
   });
 }

@@ -1,0 +1,72 @@
+--- apps/mobile/src/features/reports/screens/ReportsScreen.tsx
++++ apps/mobile/src/features/reports/screens/ReportsScreen.tsx
+@@ -2,6 +2,7 @@
+ import { View, Text, ScrollView, RefreshControl, Alert, Share, Platform, Pressable } from 'react-native';
+ import { MaterialCommunityIcons } from '@expo/vector-icons';
++import DateTimePicker from '@react-native-community/datetimepicker';
+ 
+ import { Screen, Loader, Button, ProgressBar, Modal } from '@/components/ui';
+ import { useTrends, useCategoryComparison } from '../hooks/useReports';
+@@ -21,6 +22,8 @@
+   const [showFilters, setShowFilters] = useState(false);
+   const [draftFilters, setDraftFilters] = useState<ReportFilters>(filters);
++  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
++  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+ 
+   const { data: accounts } = useAccounts();
+@@ -279,6 +282,31 @@
+             <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
+               Selected: {draftFilters.startDate === '2000-01-01' ? 'All Time' : `${draftFilters.startDate} to ${draftFilters.endDate}`}
+             </Text>
++
++            {/* Custom Date Range */}
++            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
++              <View style={{ flex: 1 }}>
++                <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>Start Date</Text>
++                <Pressable
++                  onPress={() => setShowStartDatePicker(true)}
++                  style={{ padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}
++                >
++                  <Text style={{ fontSize: 13, color: '#111827' }}>{draftFilters.startDate}</Text>
++                </Pressable>
++              </View>
++              <View style={{ flex: 1 }}>
++                <Text style={{ fontSize: 12, fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>End Date</Text>
++                <Pressable
++                  onPress={() => setShowEndDatePicker(true)}
++                  style={{ padding: 12, backgroundColor: '#F9FAFB', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}
++                >
++                  <Text style={{ fontSize: 13, color: '#111827' }}>{draftFilters.endDate}</Text>
++                </Pressable>
++              </View>
++            </View>
+           </View>
+ 
+           {/* Wallet */}
+@@ -324,6 +352,28 @@
+             </View>
+           </View>
+         </View>
++
++        {showStartDatePicker && (
++          <DateTimePicker
++            value={new Date(draftFilters.startDate === '2000-01-01' ? new Date().toISOString() : draftFilters.startDate)}
++            mode="date"
++            onChange={(event, selectedDate) => {
++              setShowStartDatePicker(Platform.OS === 'ios');
++              if (selectedDate) setDraftFilters({ ...draftFilters, startDate: getLocalISODate(selectedDate) });
++            }}
++          />
++        )}
++        {showEndDatePicker && (
++          <DateTimePicker
++            value={new Date(draftFilters.endDate)}
++            mode="date"
++            onChange={(event, selectedDate) => {
++              setShowEndDatePicker(Platform.OS === 'ios');
++              if (selectedDate) setDraftFilters({ ...draftFilters, endDate: getLocalISODate(selectedDate) });
++            }}
++          />
++        )}
+       </Modal>
+     </Screen>

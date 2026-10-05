@@ -56,7 +56,10 @@ export default function TransactionForm({
   const [amount, setAmount] = useState(
     transaction ? String(transaction.amount) : '',
   );
-  const [category, setCategory] = useState(transaction?.category || '');
+  const initialValidCats = (transaction?.type || initialType) === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const isCustomInitial = !!transaction?.category && !initialValidCats.includes(transaction.category) && transaction.type !== 'transfer';
+  const [selectedPill, setSelectedPill] = useState(isCustomInitial ? 'Other' : (transaction?.category || ''));
+  const [customCategory, setCustomCategory] = useState(isCustomInitial ? transaction.category : '');
   const [description, setDescription] = useState(
     transaction?.description || '',
   );
@@ -82,11 +85,11 @@ export default function TransactionForm({
     setType(newType);
     if (onTypeChange) onTypeChange(newType);
     if (newType === 'transfer') {
-      setCategory('Transfer');
+      setSelectedPill('Transfer');
     } else {
       const validCategories = newType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-      if (category && !validCategories.includes(category)) {
-        setCategory('');
+      if (selectedPill && !validCategories.includes(selectedPill) && selectedPill !== 'Other') {
+        setSelectedPill('');
       }
     }
   };
@@ -107,7 +110,8 @@ export default function TransactionForm({
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       newErrors.amount = 'Amount must be greater than zero';
     }
-    if (type !== 'transfer' && !category) {
+    const finalCategory = selectedPill === 'Other' ? customCategory.trim() : selectedPill;
+    if (type !== 'transfer' && !finalCategory) {
       newErrors.category = 'Category is required';
     }
     if (!date) {
@@ -121,12 +125,13 @@ export default function TransactionForm({
   const handleSubmit = () => {
     if (!validate()) return;
 
+    const finalCategory = selectedPill === 'Other' ? customCategory.trim() : selectedPill;
     const payload = {
       accountId,
       transferAccountId: type === 'transfer' ? transferAccountId : undefined,
       type,
       amount: parseFloat(amount),
-      category: type === 'transfer' ? 'Transfer' : category,
+      category: type === 'transfer' ? 'Transfer' : finalCategory,
       description: description || undefined,
       date,
     };
@@ -266,16 +271,16 @@ export default function TransactionForm({
             {categories.map((cat) => (
               <Pressable
                 key={cat}
-                onPress={() => setCategory(cat)}
+                onPress={() => setSelectedPill(cat)}
                 className={`px-sm py-xs rounded-full border ${
-                  category === cat
+                  selectedPill === cat
                     ? 'bg-primary border-primary'
                     : 'bg-surface border-border'
                 }`}
               >
                 <Text
                   className={`text-xs ${
-                    category === cat ? 'text-white' : 'text-text-secondary'
+                    selectedPill === cat ? 'text-white' : 'text-text-secondary'
                   }`}
                 >
                   {cat}
@@ -283,6 +288,16 @@ export default function TransactionForm({
               </Pressable>
             ))}
           </View>
+          {selectedPill === 'Other' && (
+            <View className="mt-md">
+              <Input
+                label="Custom Category"
+                placeholder="e.g. Gym, Subscription"
+                value={customCategory}
+                onChangeText={setCustomCategory}
+              />
+            </View>
+          )}
           {errors.category && (
             <Text className="text-xs text-danger mt-xs">{errors.category}</Text>
           )}

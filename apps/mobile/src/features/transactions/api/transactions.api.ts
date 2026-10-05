@@ -11,6 +11,13 @@ import type {
 } from '../types';
 
 export const TransactionApi = {
+  async getCategories(): Promise<string[]> {
+    const { data } = await api.get<{ data: string[] }>(
+      API_ENDPOINTS.TRANSACTIONS.CATEGORIES,
+    );
+    return data.data;
+  },
+
   async list(params?: TransactionListParams): Promise<TransactionListResponse> {
     const { data } = await api.get<TransactionListResponse>(
       API_ENDPOINTS.TRANSACTIONS.LIST,
