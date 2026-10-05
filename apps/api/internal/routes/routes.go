@@ -31,6 +31,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 
 	// Transaction routes (protected)
 	transactions := api.Group("/transactions", middleware.AuthRequired())
+	transactions.Get("/categories/all", transactionHandler.Categories)
 	transactions.Get("/", transactionHandler.List)
 	transactions.Get("/:id", transactionHandler.Get)
 	transactions.Post("/", transactionHandler.Create)

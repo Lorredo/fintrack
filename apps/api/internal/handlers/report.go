@@ -17,21 +17,20 @@ func NewReportHandler(service *services.ReportService) *ReportHandler {
 	return &ReportHandler{service: service}
 }
 
-// Trends returns monthly income/expense/net trends for the last N months.
+func getFilters(c *fiber.Ctx) (string, string, string, string) {
+	now := time.Now()
+	startDate := c.Query("startDate", time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02"))
+	endDate := c.Query("endDate", now.Format("2006-01-02"))
+	accountId := c.Query("accountId", "")
+	txType := c.Query("type", "")
+	return startDate, endDate, accountId, txType
+}
+
 func (h *ReportHandler) Trends(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
+	startDate, endDate, accountId, txType := getFilters(c)
 
-	periods := 6
-	if m := c.Query("months", ""); m != "" {
-		fmt.Sscanf(m, "%d", &periods)
-	}
-	if periods < 1 || periods > 52 {
-		periods = 6
-	}
-	
-	periodType := c.Query("period", "monthly")
-
-	trends, err := h.service.GetTrends(c.Context(), userID, periods, periodType)
+	trends, err := h.service.GetTrends(c.Context(), userID, startDate, endDate, accountId, txType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to fetch trends",
@@ -43,15 +42,11 @@ func (h *ReportHandler) Trends(c *fiber.Ctx) error {
 	})
 }
 
-// Categories returns category breakdown with previous month comparison.
 func (h *ReportHandler) Categories(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
+	startDate, endDate, accountId, txType := getFilters(c)
 
-	now := time.Now()
-	refDate := c.Query("month", now.Format("2006-01-02"))
-	periodType := c.Query("period", "monthly")
-
-	comparisons, err := h.service.GetCategories(c.Context(), userID, refDate, periodType)
+	comparisons, err := h.service.GetCategories(c.Context(), userID, startDate, endDate, accountId, txType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to fetch categories",
@@ -63,20 +58,11 @@ func (h *ReportHandler) Categories(c *fiber.Ctx) error {
 	})
 }
 
-// Export returns transactions as CSV for a given month.
 func (h *ReportHandler) Export(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
+	startDate, endDate, accountId, txType := getFilters(c)
 
-	now := time.Now()
-	month := c.Query("month", now.Format("2006-01"))
-
-	if _, err := time.Parse("2006-01", month); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Invalid month format, use YYYY-MM",
-		})
-	}
-
-	csvData, err := h.service.ExportCSV(c.Context(), userID, month)
+	csvData, err := h.service.ExportCSV(c.Context(), userID, startDate, endDate, accountId, txType)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to export transactions",
@@ -86,12 +72,13 @@ func (h *ReportHandler) Export(c *fiber.Ctx) error {
 	format := c.Query("format", "csv")
 	if format == "csv" {
 		c.Set("Content-Type", "text/csv")
-		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=transactions_%s.csv", month))
+		c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=transactions_%s_to_%s.csv", startDate, endDate))
 		return c.SendString(csvData)
 	}
 
 	return c.JSON(fiber.Map{
 		"data":  csvData,
-		"month": month,
+		"startDate": startDate,
+		"endDate": endDate,
 	})
 }

@@ -31,7 +31,9 @@ func (s *BudgetService) List(ctx context.Context, userID, targetDate string) ([]
 			`SELECT b.id, b.user_id, b.account_id, b.category, b.amount, b.period_type, TO_CHAR(b.start_date, 'YYYY-MM-DD'), TO_CHAR(b.end_date, 'YYYY-MM-DD'), b.created_at, b.updated_at,
 				COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as spent
 				FROM budgets b
-				LEFT JOIN transactions t ON b.user_id = t.user_id AND b.account_id = t.account_id AND b.category = t.category
+				LEFT JOIN transactions t ON b.user_id = t.user_id 
+					AND (b.account_id IS NULL OR b.account_id = t.account_id) 
+					AND b.category = t.category
 					AND t.date >= b.start_date AND t.date <= b.end_date
 				WHERE b.user_id = $1 AND b.start_date <= $2::DATE AND b.end_date >= $2::DATE
 				GROUP BY b.id, b.user_id, b.account_id, b.category, b.amount, b.period_type, b.start_date, b.end_date, b.created_at, b.updated_at
@@ -44,7 +46,9 @@ func (s *BudgetService) List(ctx context.Context, userID, targetDate string) ([]
 			`SELECT b.id, b.user_id, b.account_id, b.category, b.amount, b.period_type, TO_CHAR(b.start_date, 'YYYY-MM-DD'), TO_CHAR(b.end_date, 'YYYY-MM-DD'), b.created_at, b.updated_at,
 				COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as spent
 				FROM budgets b
-				LEFT JOIN transactions t ON b.user_id = t.user_id AND b.account_id = t.account_id AND b.category = t.category
+				LEFT JOIN transactions t ON b.user_id = t.user_id 
+					AND (b.account_id IS NULL OR b.account_id = t.account_id) 
+					AND b.category = t.category
 					AND t.date >= b.start_date AND t.date <= b.end_date
 				WHERE b.user_id = $1
 				GROUP BY b.id, b.user_id, b.account_id, b.category, b.amount, b.period_type, b.start_date, b.end_date, b.created_at, b.updated_at
@@ -85,7 +89,7 @@ func (s *BudgetService) Get(ctx context.Context, id, userID string) (*models.Bud
 	err = s.db.QueryRow(
 		ctx,
 		`SELECT COALESCE(SUM(amount), 0) FROM transactions
-		 WHERE user_id = $1 AND account_id = $2 AND category = $3 AND type = 'expense'
+		 WHERE user_id = $1 AND ($2::uuid IS NULL OR account_id = $2) AND category = $3 AND type = 'expense'
 		 AND date >= $4::DATE AND date <= $5::DATE`,
 		userID, b.AccountID, b.Category, b.StartDate, b.EndDate,
 	).Scan(&b.Spent)

@@ -267,3 +267,24 @@ func joinStrings(strs []string, sep string) string {
 	}
 	return result
 }
+
+func (s *TransactionService) GetDistinctCategories(ctx context.Context, userID string) ([]string, error) {
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT category FROM transactions WHERE user_id = $1 AND category != 'Transfer' AND category != '' ORDER BY category ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []string
+	for rows.Next() {
+		var category string
+		if err := rows.Scan(&category); err == nil {
+			categories = append(categories, category)
+		}
+	}
+	
+	if len(categories) == 0 {
+		categories = []string{}
+	}
+	return categories, nil
+}

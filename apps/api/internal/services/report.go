@@ -21,51 +21,76 @@ func NewReportService(db database.Querier) *ReportService {
 	return &ReportService{db: db}
 }
 
-func generatePeriodLabels(now time.Time, periodType string, periods int) []string {
-	labels := make([]string, periods)
-	for i := 0; i < periods; i++ {
-		switch periodType {
-		case "weekly":
-			t := now.AddDate(0, 0, -7*(periods-1-i))
-			// Find Monday
-			offset := int(time.Monday - t.Weekday())
+func generateLabels(start, end time.Time, truncType string) []string {
+	var labels []string
+	curr := start
+	for curr.Before(end) || curr.Equal(end) {
+		switch truncType {
+		case "day":
+			labels = append(labels, curr.Format("2006-01-02"))
+			curr = curr.AddDate(0, 0, 1)
+		case "week":
+			offset := int(time.Monday - curr.Weekday())
 			if offset > 0 {
 				offset -= 7
 			}
-			labels[i] = t.AddDate(0, 0, offset).Format("2006-01-02")
-		case "yearly":
-			t := now.AddDate(-(periods-1-i), 0, 0)
-			labels[i] = t.Format("2006") + "-01-01"
+			labels = append(labels, curr.AddDate(0, 0, offset).Format("2006-01-02"))
+			curr = curr.AddDate(0, 0, 7)
+		case "year":
+			labels = append(labels, curr.Format("2006")+"-01-01")
+			curr = curr.AddDate(1, 0, 0)
 		default:
-			t := now.AddDate(0, -(periods-1-i), 0)
-			labels[i] = t.Format("2006-01") + "-01"
+			labels = append(labels, curr.Format("2006-01")+"-01")
+			curr = curr.AddDate(0, 1, 0)
 		}
 	}
 	return labels
 }
 
-func (s *ReportService) GetTrends(ctx context.Context, userID string, periods int, periodType string) ([]models.MonthlyTrend, error) {
-	now := time.Now()
-	labels := generatePeriodLabels(now, periodType, periods)
-	startDate := labels[0]
-
+func (s *ReportService) GetTrends(ctx context.Context, userID, startDate, endDate, accountId, txType string) ([]models.MonthlyTrend, error) {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, err
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, err
+	}
+	
+	days := end.Sub(start).Hours() / 24
 	truncType := "month"
-	if periodType == "weekly" {
+	if days <= 31 {
+		truncType = "day"
+	} else if days <= 180 {
 		truncType = "week"
-	} else if periodType == "yearly" {
+	} else if days > 730 {
 		truncType = "year"
 	}
+
+	labels := generateLabels(start, end, truncType)
 
 	query := fmt.Sprintf(`
 		SELECT to_char(date_trunc('%s', date), 'YYYY-MM-DD') as period_label,
 		       COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
 		       COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
 		FROM transactions
-		WHERE user_id = $1 AND date >= $2::date
-		GROUP BY period_label
-		ORDER BY period_label ASC`, truncType)
+		WHERE user_id = $1 AND date >= $2::date AND date <= $3::date
+	`, truncType)
 
-	rows, err := s.db.Query(ctx, query, userID, startDate)
+	args := []interface{}{userID, startDate, endDate}
+	
+	if accountId != "" {
+		query += fmt.Sprintf(" AND (account_id = $%d OR transfer_account_id = $%d)", len(args)+1, len(args)+1)
+		args = append(args, accountId)
+	}
+	if txType != "" {
+		query += fmt.Sprintf(" AND type = $%d", len(args)+1)
+		args = append(args, txType)
+	}
+
+	query += " GROUP BY period_label ORDER BY period_label ASC"
+
+	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,14 +99,13 @@ func (s *ReportService) GetTrends(ctx context.Context, userID string, periods in
 	trendMap := make(map[string]*models.MonthlyTrend)
 	for rows.Next() {
 		var t models.MonthlyTrend
-		if err := rows.Scan(&t.Month, &t.Income, &t.Expense); err != nil {
-			continue
+		if err := rows.Scan(&t.Month, &t.Income, &t.Expense); err == nil {
+			t.Net = t.Income - t.Expense
+			trendMap[t.Month] = &t
 		}
-		t.Net = t.Income - t.Expense
-		trendMap[t.Month] = &t
 	}
 
-	trends := make([]models.MonthlyTrend, 0, periods)
+	trends := make([]models.MonthlyTrend, 0, len(labels))
 	for _, label := range labels {
 		if t, ok := trendMap[label]; ok {
 			trends = append(trends, *t)
@@ -98,150 +122,104 @@ func (s *ReportService) GetTrends(ctx context.Context, userID string, periods in
 	return trends, nil
 }
 
-func (s *ReportService) GetCategories(ctx context.Context, userID, refDateStr, periodType string) ([]models.CategoryComparison, error) {
-	var currentStart, currentEnd, prevStart, prevEnd time.Time
-	refDate, err := time.Parse("2006-01-02", refDateStr)
+func (s *ReportService) GetCategories(ctx context.Context, userID, startDate, endDate, accountId, txType string) ([]models.CategoryComparison, error) {
+	start, err := time.Parse("2006-01-02", startDate)
 	if err != nil {
-		// Fallback if they pass just YYYY-MM
-		refDate, err = time.Parse("2006-01", refDateStr)
-		if err != nil {
-			refDate = time.Now()
-		}
+		return nil, err
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, err
+	}
+	
+	days := int(end.Sub(start).Hours() / 24)
+	prevStart := start.AddDate(0, 0, -(days+1)).Format("2006-01-02")
+	prevEnd := start.AddDate(0, 0, -1).Format("2006-01-02")
+	
+	queryStr := `SELECT category, type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND date >= $2 AND date <= $3`
+	argsCurr := []interface{}{userID, startDate, endDate}
+	argsPrev := []interface{}{userID, prevStart, prevEnd}
+
+	if accountId != "" {
+		queryStr += fmt.Sprintf(" AND account_id = $%d", len(argsCurr)+1)
+		argsCurr = append(argsCurr, accountId)
+		argsPrev = append(argsPrev, accountId)
+	}
+	if txType != "" {
+		queryStr += fmt.Sprintf(" AND type = $%d", len(argsCurr)+1)
+		argsCurr = append(argsCurr, txType)
+		argsPrev = append(argsPrev, txType)
 	}
 
-	if periodType == "weekly" {
-		offset := int(time.Monday - refDate.Weekday())
-		if offset > 0 {
-			offset -= 7
-		}
-		currentStart = refDate.AddDate(0, 0, offset)
-		currentEnd = currentStart.AddDate(0, 0, 7)
-		prevStart = currentStart.AddDate(0, 0, -7)
-		prevEnd = currentStart
-	} else if periodType == "yearly" {
-		currentStart = time.Date(refDate.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
-		currentEnd = currentStart.AddDate(1, 0, 0)
-		prevStart = currentStart.AddDate(-1, 0, 0)
-		prevEnd = currentStart
-	} else {
-		currentStart = time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, time.UTC)
-		currentEnd = currentStart.AddDate(0, 1, 0)
-		prevStart = currentStart.AddDate(0, -1, 0)
-		prevEnd = currentStart
-	}
+	queryStr += " GROUP BY category, type ORDER BY total DESC"
 
-	currentRows, err := s.db.Query(
-		ctx,
-		`SELECT category, type, SUM(amount) as total
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2 AND date < $3
-		 GROUP BY category, type
-		 ORDER BY total DESC`,
-		userID, currentStart.Format("2006-01-02"), currentEnd.Format("2006-01-02"),
-	)
+	currentRows, err := s.db.Query(ctx, queryStr, argsCurr...)
 	if err != nil {
 		return nil, err
 	}
 	defer currentRows.Close()
 
 	currentMap := make(map[string]models.CategoryComparison)
-	type currentRow struct {
-		category string
-		type_    string
-		total    float64
-	}
-	var currentCategories []currentRow
-
 	for currentRows.Next() {
-		var cr currentRow
-		if err := currentRows.Scan(&cr.category, &cr.type_, &cr.total); err != nil {
-			continue
-		}
-		currentCategories = append(currentCategories, cr)
-		currentMap[cr.category+"|"+cr.type_] = models.CategoryComparison{
-			Category:           cr.category,
-			Type:               cr.type_,
-			CurrentMonthTotal:  cr.total,
-			PreviousMonthTotal: 0,
-			Change:             cr.total,
-			ChangePercent:      100,
+		var cat, tType string
+		var total float64
+		if err := currentRows.Scan(&cat, &tType, &total); err == nil {
+			currentMap[cat] = models.CategoryComparison{
+				Category:          cat,
+				Type:              tType,
+				CurrentMonthTotal: total,
+				PreviousMonthTotal: 0,
+			}
 		}
 	}
 
-	prevRows, err := s.db.Query(
-		ctx,
-		`SELECT category, type, SUM(amount) as total
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2 AND date < $3
-		 GROUP BY category, type`,
-		userID, prevStart.Format("2006-01-02"), prevEnd.Format("2006-01-02"),
-	)
+	prevRows, err := s.db.Query(ctx, queryStr, argsPrev...)
 	if err != nil {
 		return nil, err
 	}
 	defer prevRows.Close()
 
 	for prevRows.Next() {
-		var category, type_ string
+		var cat, tType string
 		var total float64
-		if err := prevRows.Scan(&category, &type_, &total); err != nil {
-			continue
-		}
-		key := category + "|" + type_
-		if existing, ok := currentMap[key]; ok {
-			existing.PreviousMonthTotal = total
-			existing.Change = existing.CurrentMonthTotal - total
-			if total > 0 {
-				existing.ChangePercent = ((existing.CurrentMonthTotal - total) / total) * 100
-			}
-			currentMap[key] = existing
-		} else {
-			currentMap[key] = models.CategoryComparison{
-				Category:           category,
-				Type:               type_,
-				CurrentMonthTotal:  0,
-				PreviousMonthTotal: total,
-				Change:             -total,
-				ChangePercent:      -100,
+		if err := prevRows.Scan(&cat, &tType, &total); err == nil {
+			if existing, ok := currentMap[cat]; ok {
+				existing.PreviousMonthTotal = total
+				currentMap[cat] = existing
+			} else {
+				currentMap[cat] = models.CategoryComparison{
+					Category:          cat,
+					Type:              tType,
+					CurrentMonthTotal: 0,
+					PreviousMonthTotal: total,
+				}
 			}
 		}
 	}
 
 	comparisons := make([]models.CategoryComparison, 0, len(currentMap))
-	seen := make(map[string]bool)
-	for _, cr := range currentCategories {
-		key := cr.category + "|" + cr.type_
-		if cc, ok := currentMap[key]; ok {
-			comparisons = append(comparisons, cc)
-			seen[key] = true
-		}
+	for _, c := range currentMap {
+		comparisons = append(comparisons, c)
 	}
-	for key, cc := range currentMap {
-		if !seen[key] {
-			comparisons = append(comparisons, cc)
-		}
-	}
-
 	return comparisons, nil
 }
 
-func (s *ReportService) ExportCSV(ctx context.Context, userID, month string) (string, error) {
-	t, err := time.Parse("2006-01", month)
-	if err != nil {
-		t, _ = time.Parse("2006-01-02", month)
+func (s *ReportService) ExportCSV(ctx context.Context, userID, startDate, endDate, accountId, txType string) (string, error) {
+	queryStr := `SELECT date, type, amount, category, description FROM transactions WHERE user_id = $1 AND date >= $2 AND date <= $3`
+	args := []interface{}{userID, startDate, endDate}
+
+	if accountId != "" {
+		queryStr += fmt.Sprintf(" AND (account_id = $%d OR transfer_account_id = $%d)", len(args)+1, len(args)+1)
+		args = append(args, accountId)
+	}
+	if txType != "" {
+		queryStr += fmt.Sprintf(" AND type = $%d", len(args)+1)
+		args = append(args, txType)
 	}
 
-	startDate := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC).Format("2006-01-02")
-	endDate := time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, 1, 0).Format("2006-01-02")
+	queryStr += " ORDER BY date DESC, created_at DESC"
 
-	rows, err := s.db.Query(
-		ctx,
-		`SELECT date, type, amount, category, description
-		 FROM transactions
-		 WHERE user_id = $1 AND date >= $2 AND date < $3
-		 ORDER BY date DESC, created_at DESC`,
-		userID, startDate, endDate,
-	)
+	rows, err := s.db.Query(ctx, queryStr, args...)
 	if err != nil {
 		return "", err
 	}
@@ -257,9 +235,9 @@ func (s *ReportService) ExportCSV(ctx context.Context, userID, month string) (st
 		if err := rows.Scan(&date, &type_, &amount, &category, &description); err != nil {
 			continue
 		}
-		desc := strings.ReplaceAll(description, "\"", "\"\"")
 		sb.WriteString(fmt.Sprintf("%s,%s,%.2f,%s,\"%s\"\n",
-			date.Format("2006-01-02"), type_, amount, category, desc))
+			date.Format("2006-01-02"), type_, amount, category, strings.ReplaceAll(description, "\"", "\"\"")))
 	}
+
 	return sb.String(), nil
 }
