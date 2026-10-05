@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Lorredo/fintrack/api/internal/models"
 	"github.com/Lorredo/fintrack/api/internal/services"
@@ -78,6 +81,12 @@ func (h *BudgetHandler) Create(c *fiber.Ctx) error {
 
 	b, err := h.service.Create(c.Context(), userID, req)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"message": "A budget for this category and period already exists.",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to create budget",
 			"error":   err.Error(),
@@ -116,6 +125,12 @@ func (h *BudgetHandler) Update(c *fiber.Ctx) error {
 		})
 	}
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+				"message": "A budget for this category and period already exists.",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to update budget",
 			"error":   err.Error(),

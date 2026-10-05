@@ -7,6 +7,12 @@ type DashboardSummary struct {
 	RecentTransactions []Transaction     `json:"recentTransactions"`
 	CategoryBreakdown  []CategorySummary `json:"categoryBreakdown"`
 	ActiveBudgets      []Budget          `json:"activeBudgets"`
+	DailySpending      []DailySpending   `json:"dailySpending"`
+}
+
+type DailySpending struct {
+	Date  string  `json:"date"`
+	Total float64 `json:"total"`
 }
 
 type CategorySummary struct {

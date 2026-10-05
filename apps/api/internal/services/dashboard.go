@@ -155,6 +155,27 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 	}
 	budgetRows.Close()
 
+	var dailyRows pgx.Rows
+	if accountID != "" {
+		dailyRows, err = s.db.Query(ctx,
+			`SELECT TO_CHAR(date, 'YYYY-MM-DD') as day, SUM(amount) as total FROM transactions WHERE user_id = $1 AND account_id = $2 AND type = 'expense' AND date >= $3 AND date < $4 GROUP BY day ORDER BY day ASC`,
+			userID, accountID, startDate, endDate)
+	} else {
+		dailyRows, err = s.db.Query(ctx,
+			`SELECT TO_CHAR(date, 'YYYY-MM-DD') as day, SUM(amount) as total FROM transactions WHERE user_id = $1 AND type = 'expense' AND date >= $2 AND date < $3 GROUP BY day ORDER BY day ASC`,
+			userID, startDate, endDate)
+	}
+	if err != nil { return nil, err }
+	
+	dailySpending := make([]models.DailySpending, 0)
+	for dailyRows.Next() {
+		var ds models.DailySpending
+		if err := dailyRows.Scan(&ds.Date, &ds.Total); err == nil {
+			dailySpending = append(dailySpending, ds)
+		}
+	}
+	dailyRows.Close()
+
 	return &models.DashboardSummary{
 		TotalIncome:        totalIncome,
 		TotalExpense:       totalExpense,
@@ -162,6 +183,7 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 		RecentTransactions: recentTransactions,
 		CategoryBreakdown:  categoryBreakdown,
 		ActiveBudgets:      activeBudgets,
+		DailySpending:      dailySpending,
 	}, nil
 }
 
