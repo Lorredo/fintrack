@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -73,24 +73,15 @@ export default function RegisterScreen() {
       >
         {/* Branding */}
         <View style={{ alignItems: 'center', marginBottom: 32 }}>
-          <View
+          <Image
+            source={require('../../../../assets/logo.jpg')}
             style={{
-              width: 72,
-              height: 72,
+              width: 80,
+              height: 80,
               borderRadius: 20,
-              backgroundColor: '#2563EB',
-              alignItems: 'center',
-              justifyContent: 'center',
               marginBottom: 16,
-              shadowColor: '#2563EB',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.35,
-              shadowRadius: 16,
-              elevation: 8,
             }}
-          >
-            <MaterialCommunityIcons name="wallet" size={36} color="#fff" />
-          </View>
+          />
           <Text style={{ fontSize: 28, fontWeight: '700', color: '#111827', letterSpacing: -0.5 }}>
             Create Account
           </Text>

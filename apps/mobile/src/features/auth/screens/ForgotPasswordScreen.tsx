@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 
@@ -38,9 +38,15 @@ export default function ForgotPasswordScreen() {
       >
         {/* Header */}
         <View className="items-center mb-xl">
-          <View className="w-20 h-20 rounded-2xl bg-primary items-center justify-center mb-md shadow-lg">
-            <Text className="text-4xl font-bold text-white">F</Text>
-          </View>
+          <Image
+            source={require('../../../../assets/logo.jpg')}
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 20,
+              marginBottom: 16,
+            }}
+          />
           <Text className="text-3xl font-bold text-text">Forgot Password?</Text>
           <Text className="text-base text-text-secondary mt-sm text-center px-lg">
             {`Enter your email address and we'll send you a link to reset your password`}
