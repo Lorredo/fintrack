@@ -21,12 +21,16 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
+	auth.Post("/google", authHandler.GoogleLogin)
+	auth.Post("/apple", authHandler.AppleLogin)
 	auth.Post("/refresh", authHandler.Refresh)
 
 	// Auth routes (protected)
 
 	auth.Post("/logout", middleware.AuthRequired(), authHandler.Logout)
 	auth.Get("/me", middleware.AuthRequired(), authHandler.Me)
+	auth.Post("/pin", middleware.AuthRequired(), authHandler.SetPIN)
+	auth.Post("/pin/verify", middleware.AuthRequired(), authHandler.VerifyPIN)
 	auth.Delete("/wipe-data", middleware.AuthRequired(), authHandler.WipeData)
 
 	// Transaction routes (protected)
