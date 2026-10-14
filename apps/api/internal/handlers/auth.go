@@ -571,3 +571,95 @@ func (h *AuthHandler) VerifyPIN(c *fiber.Ctx) error {
 	})
 }
 
+func (h *AuthHandler) PinLogin(c *fiber.Ctx) error {
+	var req models.PinLoginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "Invalid request body",
+		})
+	}
+
+	if len(req.PIN) != 4 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"message": "PIN must be exactly 4 digits",
+		})
+	}
+
+	var user models.User
+	var pinHash *string
+	var avatarURL *string
+	var err error
+
+	if req.Email != "" {
+		err = database.Pool.QueryRow(
+			context.Background(),
+			`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'email'), avatar_url, pin_hash, created_at, updated_at
+			 FROM users WHERE email = $1`,
+			req.Email,
+		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &avatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
+	} else {
+		err = database.Pool.QueryRow(
+			context.Background(),
+			`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'email'), avatar_url, pin_hash, created_at, updated_at
+			 FROM users ORDER BY created_at ASC LIMIT 1`,
+		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &avatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
+	}
+
+	if err == pgx.ErrNoRows {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"message": "No account found",
+		})
+	}
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to look up user",
+		})
+	}
+
+	// If no PIN set yet, automatically set this PIN as their initial PIN!
+	if pinHash == nil || *pinHash == "" {
+		newHash, hashErr := bcrypt.GenerateFromPassword([]byte(req.PIN), bcrypt.DefaultCost)
+		if hashErr == nil {
+			strHash := string(newHash)
+			_, _ = database.Pool.Exec(
+				context.Background(),
+				`UPDATE users SET pin_hash = $1, updated_at = NOW() WHERE id = $2`,
+				strHash, user.ID,
+			)
+			pinHash = &strHash
+		}
+	} else {
+		// Compare against stored PIN hash
+		if err := bcrypt.CompareHashAndPassword([]byte(*pinHash), []byte(req.PIN)); err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Incorrect PIN",
+			})
+		}
+	}
+
+	user.AvatarURL = avatarURL
+	user.HasPIN = true
+
+	accessToken, err := h.generateToken(user.ID, h.jwtAccessExpiry)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to generate access token",
+		})
+	}
+
+	refreshToken, err := h.generateToken(user.ID, h.jwtRefreshExpiry)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to generate refresh token",
+		})
+	}
+
+	return c.JSON(models.LoginResponse{
+		User: user,
+		Tokens: models.AuthTokens{
+			AccessToken:  accessToken,
+			RefreshToken: refreshToken,
+		},
+	})
+}
+

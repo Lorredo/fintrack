@@ -21,6 +21,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
+	auth.Post("/pin-login", authHandler.PinLogin)
 	auth.Post("/google", authHandler.GoogleLogin)
 	auth.Post("/apple", authHandler.AppleLogin)
 	auth.Post("/refresh", authHandler.Refresh)

@@ -52,6 +52,11 @@ type VerifyPINRequest struct {
 	PIN string `json:"pin" validate:"required,len=4,numeric"`
 }
 
+type PinLoginRequest struct {
+	Email string `json:"email"`
+	PIN   string `json:"pin" validate:"required,len=4,numeric"`
+}
+
 type PINResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
