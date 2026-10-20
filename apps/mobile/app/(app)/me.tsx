@@ -1,4 +1,5 @@
-import { View, Text, Pressable, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, Alert, Image } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -11,7 +12,7 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const menuItems: { icon: IconName; label: string; color: string; bg: string; route?: string }[] = [
   { icon: 'wallet-outline', label: 'Wallets & Accounts', color: '#0EA5E9', bg: '#E0F2FE', route: '/(app)/accounts' },
-  { icon: 'shield-key-outline', label: 'Security & PIN', color: '#6366F1', bg: '#EEF2FF', route: '/pin-setup' },
+  { icon: 'shield-key-outline', label: 'Security & PIN', color: '#6366F1', bg: '#EEF2FF', route: '/security' },
   { icon: 'account-circle-outline', label: 'Account Settings', color: '#2563EB', bg: '#EFF6FF' },
   { icon: 'bell-outline', label: 'Notifications', color: '#7C3AED', bg: '#F5F3FF' },
   { icon: 'help-circle-outline', label: 'Help & Support', color: '#22C55E', bg: '#F0FDF4' },
@@ -68,6 +69,7 @@ export default function MeScreen() {
     );
   };
 
+  const [imageError, setImageError] = useState(false);
   const fullName = user ? `${user.firstName} ${user.lastName}` : "User";
   const email = user?.email ?? "";
   const initials = fullName
@@ -95,24 +97,38 @@ export default function MeScreen() {
           elevation: 2,
         }}
       >
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: '#2563EB',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 14,
-            shadowColor: '#2563EB',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 4,
-          }}
-        >
-          <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>{initials}</Text>
-        </View>
+        {user?.avatarUrl && !imageError ? (
+          <Image
+            source={{ uri: user.avatarUrl }}
+            onError={() => setImageError(true)}
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              marginRight: 14,
+              backgroundColor: '#E2E8F0',
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: 32,
+              backgroundColor: '#2563EB',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 14,
+              shadowColor: '#2563EB',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 4,
+            }}
+          >
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: '700' }}>{initials}</Text>
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827' }}>{fullName}</Text>
           <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{email}</Text>

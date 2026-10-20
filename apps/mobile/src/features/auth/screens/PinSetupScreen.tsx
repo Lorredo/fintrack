@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { PinDots } from '../components/PinDots';
 import { PinKeypad } from '../components/PinKeypad';
@@ -13,10 +13,17 @@ import { storage, StorageKeys } from '@/lib/storage';
 
 export default function PinSetupScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ mode?: string }>();
   const toast = useToast();
   const unlock = useLockStore((state) => state.unlock);
 
-  const [step, setStep] = useState<'create' | 'confirm'>('create');
+  const hasExistingPin = PinService.hasPin();
+  const isChanging = params.mode === 'change' || (hasExistingPin && params.mode !== 'new');
+
+  const [step, setStep] = useState<'current' | 'create' | 'confirm'>(
+    isChanging ? 'current' : 'create'
+  );
+  const [currentPin, setCurrentPin] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [hasError, setHasError] = useState(false);
@@ -36,17 +43,41 @@ export default function PinSetupScreen() {
     checkBiometrics();
   }, []);
 
-  const handleDigitPress = (digit: string) => {
+  const handleDigitPress = async (digit: string) => {
+    if (isSubmitting) return;
     setHasError(false);
-    if (step === 'create') {
+
+    if (step === 'current') {
+      if (currentPin.length < 4) {
+        const nextCurrent = currentPin + digit;
+        setCurrentPin(nextCurrent);
+        if (nextCurrent.length === 4) {
+          setIsSubmitting(true);
+          const isCorrect = await PinService.verifyPin(nextCurrent);
+          setIsSubmitting(false);
+
+          if (isCorrect) {
+            setTimeout(() => {
+              setStep('create');
+            }, 180);
+          } else {
+            setHasError(true);
+            toast.error('Incorrect current PIN');
+            setTimeout(() => {
+              setCurrentPin('');
+              setHasError(false);
+            }, 600);
+          }
+        }
+      }
+    } else if (step === 'create') {
       if (pin.length < 4) {
         const nextPin = pin + digit;
         setPin(nextPin);
         if (nextPin.length === 4) {
-          // Move to confirm step smoothly
           setTimeout(() => {
             setStep('confirm');
-          }, 200);
+          }, 180);
         }
       }
     } else {
@@ -61,12 +92,20 @@ export default function PinSetupScreen() {
   };
 
   const handleDeletePress = () => {
+    if (isSubmitting) return;
     setHasError(false);
-    if (step === 'create') {
-      setPin((prev) => prev.slice(0, -1));
+
+    if (step === 'current') {
+      setCurrentPin((prev) => prev.slice(0, -1));
+    } else if (step === 'create') {
+      if (pin.length === 0 && isChanging) {
+        setStep('current');
+        setCurrentPin('');
+      } else {
+        setPin((prev) => prev.slice(0, -1));
+      }
     } else {
       if (confirmPin.length === 0) {
-        // Go back to create step if backspacing on empty confirm
         setStep('create');
         setPin('');
       } else {
@@ -91,6 +130,14 @@ export default function PinSetupScreen() {
     setIsSubmitting(true);
     try {
       await PinService.setPin(pin);
+
+      if (isChanging) {
+        unlock();
+        toast.success('Security PIN changed successfully!');
+        setIsSubmitting(false);
+        router.back();
+        return;
+      }
 
       if (biometricAvailable) {
         const biometricLabel = biometricType === 'face' ? 'Face ID' : 'Fingerprint';
@@ -134,27 +181,63 @@ export default function PinSetupScreen() {
   };
 
   const handleSkip = () => {
+    if (isChanging) {
+      router.back();
+      return;
+    }
     storage.set(StorageKeys.PIN_SETUP_DISMISSED, 'true');
     unlock();
     router.replace('/');
   };
 
-  const currentLength = step === 'create' ? pin.length : confirmPin.length;
+  const currentLength =
+    step === 'current'
+      ? currentPin.length
+      : step === 'create'
+      ? pin.length
+      : confirmPin.length;
+
+  const title =
+    step === 'current'
+      ? 'Enter Current PIN'
+      : step === 'create'
+      ? isChanging
+        ? 'Enter New 4-Digit PIN'
+        : 'Create a 4-Digit PIN'
+      : isChanging
+      ? 'Confirm New PIN'
+      : 'Confirm your PIN';
+
+  const subtitle =
+    step === 'current'
+      ? 'Please enter your existing 4-digit PIN to verify your identity'
+      : step === 'create'
+      ? isChanging
+        ? 'Choose a new 4-digit security PIN'
+        : 'Set a PIN for quick, secure access without having to re-enter your password'
+      : 'Re-enter your new 4-digit PIN to confirm';
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Top Header with Back button if changing PIN */}
+      {isChanging && (
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#0F172A" />
+          </Pressable>
+        </View>
+      )}
+
       <View style={styles.header}>
         <View style={styles.iconCircle}>
-          <MaterialCommunityIcons name="shield-lock-outline" size={36} color="#2563EB" />
+          <MaterialCommunityIcons
+            name={step === 'current' ? 'shield-account-outline' : 'shield-lock-outline'}
+            size={36}
+            color="#2563EB"
+          />
         </View>
-        <Text style={styles.title}>
-          {step === 'create' ? 'Create a 4-Digit PIN' : 'Confirm your PIN'}
-        </Text>
-        <Text style={styles.subtitle}>
-          {step === 'create'
-            ? 'Set a PIN for quick, secure access without having to re-enter your password'
-            : 'Re-enter your 4-digit PIN to confirm'}
-        </Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
 
       <View style={styles.dotsSection}>
@@ -171,7 +254,7 @@ export default function PinSetupScreen() {
 
       <View style={styles.footer}>
         <Pressable onPress={handleSkip} disabled={isSubmitting}>
-          <Text style={styles.skipText}>Set up later</Text>
+          <Text style={styles.skipText}>{isChanging ? 'Cancel' : 'Set up later'}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -183,12 +266,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F5F7FA',
     justifyContent: 'space-between',
-    paddingVertical: 24,
+    paddingVertical: 20,
+  },
+  topBar: {
+    paddingHorizontal: 16,
+    height: 40,
+    justifyContent: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
     paddingHorizontal: 24,
-    marginTop: 16,
+    marginTop: 8,
   },
   iconCircle: {
     width: 64,

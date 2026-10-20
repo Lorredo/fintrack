@@ -147,10 +147,23 @@ export default function LoginScreen() {
         <View style={styles.contentContainer}>
           {/* Brand / Welcome Header */}
           <View style={styles.header}>
-            <Image
-              source={require('../../../../assets/logo.jpg')}
-              style={styles.logo}
-            />
+            {user?.avatarUrl ? (
+              <Image
+                source={{ uri: user.avatarUrl }}
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 27,
+                  marginBottom: 8,
+                  backgroundColor: '#E2E8F0',
+                }}
+              />
+            ) : (
+              <Image
+                source={require('../../../../assets/logo.jpg')}
+                style={styles.logo}
+              />
+            )}
             <Text style={styles.welcomeTitle}>
               {savedUser?.firstName ? `Welcome back, ${displayName}!` : 'FinTrack Security PIN'}
             </Text>

@@ -2,9 +2,12 @@ import "../src/global.css";
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import * as WebBrowser from 'expo-web-browser';
 import { AppProvider } from "@/providers/AppProvider";
 import AuthInitializer from "@/providers/AuthInitializer";
 import ApiInitializer from "@/providers/ApiInitializer";
+
+WebBrowser.maybeCompleteAuthSession();
 
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 import { widgetTaskHandler } from '../widget/WidgetTaskHandler';

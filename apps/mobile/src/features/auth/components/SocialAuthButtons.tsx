@@ -36,7 +36,7 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
   const iosClientId =
     process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
-  const [request, , promptAsync] = Google.useIdTokenAuthRequest({
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Platform.OS === 'android' ? androidClientId : webClientId,
     androidClientId,
     iosClientId,
@@ -64,6 +64,18 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
       setLoadingGoogle(false);
     }
   }, [handleAuthSuccess, toast]);
+
+  // Handle Google Auth response when code exchange completes
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const idToken =
+        response.params?.id_token ||
+        (response as any).authentication?.idToken;
+      if (idToken) {
+        handleRealGoogleAuth(idToken);
+      }
+    }
+  }, [response, handleRealGoogleAuth]);
 
   useEffect(() => {
     async function checkApple() {

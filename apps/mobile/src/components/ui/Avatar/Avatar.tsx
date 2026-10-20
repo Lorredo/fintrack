@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Image, Text } from 'react-native';
 
 import { AvatarProps } from './Avatar.types';
@@ -8,6 +9,8 @@ export default function Avatar({
   size = 40,
   style,
 }: AvatarProps) {
+  const [hasError, setHasError] = useState(false);
+
   const initials =
     name
       ?.split(' ')
@@ -15,6 +18,8 @@ export default function Avatar({
       .join('')
       .toUpperCase()
       .slice(0, 2) ?? '?';
+
+  const imageSource = typeof source === 'string' ? { uri: source } : source;
 
   return (
     <View
@@ -27,11 +32,12 @@ export default function Avatar({
       ]}
       className={`rounded-full items-center justify-center overflow-hidden ${name ? 'bg-primary' : 'bg-disabled'}`}
     >
-      {source ? (
+      {imageSource && !hasError ? (
         <Image
-          source={source}
+          source={imageSource}
           className="w-full h-full"
           resizeMode="cover"
+          onError={() => setHasError(true)}
         />
       ) : (
         <Text

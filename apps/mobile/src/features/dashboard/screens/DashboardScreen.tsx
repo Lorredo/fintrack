@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, Pressable, ScrollView, Dimensions, NativeSyntheticEvent, NativeScrollEvent, Image } from 'react-native';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -95,9 +95,52 @@ export default function DashboardScreen() {
         />
       }
     >
-      <View style={{ paddingTop: 8, paddingBottom: 20 }}>
-        <Text style={{ fontSize: 13, color: '#6B7280', fontWeight: '500' }}>{getGreeting()},</Text>
-        <Text style={{ fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 }}>{fullName} 👋</Text>
+      <View style={{ paddingTop: 8, paddingBottom: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ flex: 1, marginRight: 12 }}>
+          <Text style={{ fontSize: 13, color: '#6B7280', fontWeight: '500' }}>{getGreeting()},</Text>
+          <Text style={{ fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 }}>{fullName} 👋</Text>
+        </View>
+        <Pressable
+          onPress={() => router.push('/(app)/me')}
+          style={{
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          {user?.avatarUrl ? (
+            <Image
+              source={{ uri: user.avatarUrl }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: '#E2E8F0',
+                borderWidth: 2,
+                borderColor: '#FFFFFF',
+              }}
+            />
+          ) : (
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: '#2563EB',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 2,
+                borderColor: '#FFFFFF',
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
+                {fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)}
+              </Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
       {/* Wallet Carousel */}
