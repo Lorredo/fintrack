@@ -52,7 +52,7 @@ export default function TransactionListScreen() {
 
   const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories();
   const { data: accounts } = useAccounts();
-  const { data, isLoading, isError, refetch, isRefetching } = useTransactionList({
+  const { data, isLoading, isFetching, isError, refetch, isRefetching } = useTransactionList({
     page,
     limit: 20,
     type: activeFilter === 'all' ? undefined : activeFilter,
@@ -63,11 +63,38 @@ export default function TransactionListScreen() {
     dateTo,
   });
 
-  const transactions = data?.data || [];
+  const [accumulatedTransactions, setAccumulatedTransactions] = useState<Transaction[]>([]);
+
+  // Reset pagination and list when filters change
+  useEffect(() => {
+    setPage(1);
+    setAccumulatedTransactions([]);
+  }, [debouncedSearch, activeFilter, filterAccountId, filterCategory, dateFrom, dateTo]);
+
+  // Sync data into accumulated transactions for smooth pagination
+  useEffect(() => {
+    if (data?.data) {
+      if (page === 1) {
+        setAccumulatedTransactions(data.data);
+      } else {
+        setAccumulatedTransactions((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const newItems = data.data.filter((t) => !existingIds.has(t.id));
+          return [...prev, ...newItems];
+        });
+      }
+    }
+  }, [data?.data, page]);
+
+  const transactions = page === 1 ? (data?.data ?? accumulatedTransactions) : accumulatedTransactions;
   const totalPages = data?.totalPages || 1;
+
+  // Initial loading is true only when we do not yet have data for the active filter/page
+  const isInitialLoading = (isLoading || (isFetching && !data)) && transactions.length === 0 && !refreshing;
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
+    setPage(1);
     refetch().finally(() => setRefreshing(false));
   }, [refetch]);
 
@@ -79,7 +106,17 @@ export default function TransactionListScreen() {
   const handleDelete = (id: string) => {
     Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteMutation.mutate(id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          deleteMutation.mutate(id, {
+            onSuccess: () => {
+              setAccumulatedTransactions((prev) => prev.filter((t) => t.id !== id));
+            },
+          });
+        },
+      },
     ]);
   };
 
@@ -182,7 +219,18 @@ export default function TransactionListScreen() {
         </View>
 
         {/* Transaction list */}
-        {transactions.length === 0 ? (
+        {isInitialLoading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+            <Loader />
+          </View>
+        ) : isError ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
+            <Text style={{ fontSize: 15, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
+              Failed to load transactions
+            </Text>
+            <Button title="Retry" onPress={() => refetch()} />
+          </View>
+        ) : transactions.length === 0 ? (
           <EmptyState
             title={search ? 'No results found' : 'No transactions yet'}
             description={
@@ -190,7 +238,6 @@ export default function TransactionListScreen() {
                 ? `No transactions match "${search}"`
                 : 'Start tracking your finances by adding your first transaction.'
             }
-        
           />
         ) : (
           <FlatList
@@ -210,7 +257,7 @@ export default function TransactionListScreen() {
               <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} tintColor="#2563EB" />
             }
             onEndReached={() => {
-              if (page < totalPages) {
+              if (page < totalPages && !isFetching) {
                 setPage((prev) => prev + 1);
               }
             }}

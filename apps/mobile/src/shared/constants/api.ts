@@ -5,6 +5,11 @@ export const API_ENDPOINTS = {
     REFRESH: '/api/v1/auth/refresh',
     LOGOUT: '/api/v1/auth/logout',
     ME: '/api/v1/auth/me',
+    GOOGLE: '/api/v1/auth/google',
+    APPLE: '/api/v1/auth/apple',
+    PIN: '/api/v1/auth/pin',
+    VERIFY_PIN: '/api/v1/auth/pin/verify',
+    PIN_LOGIN: '/api/v1/auth/pin-login',
   },
   TRANSACTIONS: {
     CATEGORIES: '/api/v1/transactions/categories/all',

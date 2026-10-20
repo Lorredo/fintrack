@@ -8,6 +8,8 @@ import {
 import {
  useAuthStore
 } from "../store/auth.store";
+import { PinService } from "../services/pin.service";
+import { useLockStore } from "../store/lock.store";
 
 
 export function useAuthHydration(){
@@ -51,6 +53,10 @@ if(token && refreshToken && user){
    token,
    refreshToken
  );
+
+ if (PinService.hasPin()) {
+   useLockStore.getState().lock();
+ }
 
 }
 

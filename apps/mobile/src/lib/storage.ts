@@ -15,5 +15,11 @@ export const storage = {
 export const StorageKeys = {
   ACCESS_TOKEN: 'access_token',
   REFRESH_TOKEN: 'refresh_token',
-   USER: "user",
+  USER: 'user',
+  PIN_HASH: 'pin_hash',
+  BIOMETRICS_ENABLED: 'biometrics_enabled',
+  HAS_PIN: 'has_pin',
+  REMEMBERED_EMAIL: 'remembered_email',
+  PIN_SETUP_DISMISSED: 'pin_setup_dismissed',
+  RECENT_GOOGLE_ACCOUNTS: 'recent_google_accounts',
 } as const;

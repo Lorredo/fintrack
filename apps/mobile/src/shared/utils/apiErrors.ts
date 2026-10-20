@@ -7,32 +7,57 @@ export interface ApiError {
 }
 
 export function parseApiError(error: unknown): ApiError {
-  const err = error as AxiosError<{ message?: string; code?: string }>;
-
-  if (!err.response) {
+  if (typeof error === 'string') {
     return {
       status: null,
-      message: 'Network error. Please check your connection.',
+      message: error,
     };
   }
 
-  const status = err.response.status;
-  const serverMessage = err.response.data?.message;
+  const err = error as AxiosError<{ message?: string; code?: string }> & { message?: string };
 
-  const messages: Record<number, string> = {
-    400: serverMessage ?? 'Invalid request.',
-    401: serverMessage ?? 'Session expired. Please log in again.',
-    403: serverMessage ?? 'You do not have permission to perform this action.',
-    404: serverMessage ?? 'The requested resource was not found.',
-    422: serverMessage ?? 'Validation failed. Please check your input.',
-    429: serverMessage ?? 'Too many requests. Please try again later.',
-    500: serverMessage ?? 'Server error. Please try again later.',
-  };
+  // 1. If server sent a JSON response with a specific message (e.g. "Incorrect PIN")
+  const serverMessage = err?.response?.data?.message;
+  if (serverMessage) {
+    return {
+      status: err.response?.status ?? null,
+      message: serverMessage,
+      code: err.response?.data?.code,
+    };
+  }
+
+  // 2. If HTTP response was received with a status code
+  if (err?.response) {
+    const status = err.response.status;
+    const messages: Record<number, string> = {
+      400: 'Invalid request.',
+      401: 'Incorrect credentials or session expired.',
+      403: 'You do not have permission to perform this action.',
+      404: 'The requested resource was not found.',
+      422: 'Validation failed. Please check your input.',
+      429: 'Too many requests. Please try again later.',
+      500: 'Server error. Please try again later.',
+    };
+
+    return {
+      status,
+      message: messages[status] ?? 'An unexpected error occurred.',
+      code: err.response.data?.code,
+    };
+  }
+
+  // 3. If there is a standard Error message (e.g. from runtime or client validation)
+  const rawMsg = err?.message;
+  if (rawMsg && !rawMsg.toLowerCase().includes('network error') && !rawMsg.toLowerCase().includes('failed to fetch')) {
+    return {
+      status: null,
+      message: rawMsg,
+    };
+  }
 
   return {
-    status,
-    message: serverMessage ?? messages[status] ?? 'An unexpected error occurred.',
-    code: err.response.data?.code,
+    status: null,
+    message: 'Network error. Please check your connection.',
   };
 }
 

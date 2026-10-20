@@ -109,12 +109,18 @@ error.config;
 
 
 
+const isAuthEndpoint =
+  originalRequest.url?.includes('auth/login') ||
+  originalRequest.url?.includes('auth/pin') ||
+  originalRequest.url?.includes('auth/google') ||
+  originalRequest.url?.includes('auth/apple') ||
+  originalRequest.url?.includes('auth/register') ||
+  originalRequest.url?.includes('auth/refresh');
+
 if(
  error.response?.status !== 401 ||
  originalRequest._retry ||
- originalRequest.url?.includes('auth/login') ||
- originalRequest.url?.includes('auth/register') ||
- originalRequest.url?.includes('auth/refresh')
+ isAuthEndpoint
 ){
 
  return Promise.reject(error);
@@ -198,7 +204,7 @@ response.refreshToken;
 
 storage.set(
  StorageKeys.ACCESS_TOKEN,
- newAccessToken
+newAccessToken
 );
 
 if(newRefreshToken){
@@ -244,7 +250,9 @@ processQueue(
 
 
 
-storage.clear();
+// Only clear session tokens, do NOT wipe user device PIN and settings
+storage.remove(StorageKeys.ACCESS_TOKEN);
+storage.remove(StorageKeys.REFRESH_TOKEN);
 
 
 useAuthStore
@@ -256,7 +264,7 @@ router.replace("/login");
 
 
 
-return Promise.reject(err);
+return Promise.reject(error);
 
 
 }

@@ -11,6 +11,7 @@ type IconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const menuItems: { icon: IconName; label: string; color: string; bg: string; route?: string }[] = [
   { icon: 'wallet-outline', label: 'Wallets & Accounts', color: '#0EA5E9', bg: '#E0F2FE', route: '/(app)/accounts' },
+  { icon: 'shield-key-outline', label: 'Security & PIN', color: '#6366F1', bg: '#EEF2FF', route: '/pin-setup' },
   { icon: 'account-circle-outline', label: 'Account Settings', color: '#2563EB', bg: '#EFF6FF' },
   { icon: 'bell-outline', label: 'Notifications', color: '#7C3AED', bg: '#F5F3FF' },
   { icon: 'help-circle-outline', label: 'Help & Support', color: '#22C55E', bg: '#F0FDF4' },

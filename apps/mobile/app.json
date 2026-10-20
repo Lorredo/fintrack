@@ -10,7 +10,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fintrack.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Allow FinTrack to use Face ID for fast and secure access."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +24,11 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.fintrack.app",
-      "versionCode": 3
+      "versionCode": 3,
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,6 +36,8 @@
     "plugins": [
       "expo-router",
       "expo-status-bar",
+      "expo-local-authentication",
+      "expo-apple-authentication",
       [
         "react-native-android-widget",
         {
@@ -45,7 +54,8 @@
           ]
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},

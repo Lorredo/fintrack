@@ -1,7 +1,6 @@
 import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { registerSchema } from '../validation/register.schema';
 import { AuthService } from '../services/auth.service';

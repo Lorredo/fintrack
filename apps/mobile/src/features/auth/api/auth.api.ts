@@ -7,6 +7,12 @@ import type {
   AuthResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
+  GoogleAuthRequest,
+  AppleAuthRequest,
+  SetPinRequest,
+  VerifyPinRequest,
+  PinLoginRequest,
+  PinResponse,
 } from '../types/auth.types';
 import { API_ENDPOINTS } from '@/shared/constants/api';
 
@@ -16,6 +22,61 @@ export class AuthApi {
   ): Promise<LoginResponse> {
     const { data } = await api.post<LoginResponse>(
       API_ENDPOINTS.AUTH.LOGIN,
+      payload,
+    );
+
+    return data;
+  }
+
+  static async googleLogin(
+    payload: GoogleAuthRequest,
+  ): Promise<LoginResponse> {
+    const { data } = await api.post<LoginResponse>(
+      API_ENDPOINTS.AUTH.GOOGLE,
+      payload,
+    );
+
+    return data;
+  }
+
+  static async appleLogin(
+    payload: AppleAuthRequest,
+  ): Promise<LoginResponse> {
+    const { data } = await api.post<LoginResponse>(
+      API_ENDPOINTS.AUTH.APPLE,
+      payload,
+    );
+
+    return data;
+  }
+
+  static async setPin(
+    payload: SetPinRequest,
+  ): Promise<PinResponse> {
+    const { data } = await api.post<PinResponse>(
+      API_ENDPOINTS.AUTH.PIN,
+      payload,
+    );
+
+    return data;
+  }
+
+  static async verifyPin(
+    payload: VerifyPinRequest,
+  ): Promise<PinResponse> {
+    const { data } = await api.post<PinResponse>(
+      API_ENDPOINTS.AUTH.VERIFY_PIN,
+      payload,
+    );
+
+    return data;
+  }
+
+  static async pinLogin(
+    payload: PinLoginRequest,
+  ): Promise<LoginResponse> {
+    const { data } = await api.post<LoginResponse>(
+      API_ENDPOINTS.AUTH.PIN_LOGIN,
       payload,
     );
 

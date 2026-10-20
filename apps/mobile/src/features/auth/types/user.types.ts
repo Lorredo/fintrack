@@ -3,6 +3,9 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
+  authProvider?: string;
+  avatarUrl?: string;
+  hasPin?: boolean;
   createdAt: string;
   updatedAt: string;
 }
