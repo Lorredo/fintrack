@@ -1,7 +1,11 @@
 package routes
 
 import (
+	"strings"
+	"time"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 
 	"github.com/Lorredo/fintrack/api/internal/handlers"
 	"github.com/Lorredo/fintrack/api/internal/middleware"
@@ -21,7 +25,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
-	auth.Post("/pin-login", authHandler.PinLogin)
+	auth.Post("/pin-login", pinLoginLimiter(), authHandler.PinLogin)
 	auth.Post("/google", authHandler.GoogleLogin)
 	auth.Post("/apple", authHandler.AppleLogin)
 	auth.Post("/refresh", authHandler.Refresh)
@@ -68,4 +72,27 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	accounts.Post("/", accountHandler.Create)
 	accounts.Put("/:id", accountHandler.Update)
 	accounts.Delete("/:id", accountHandler.Delete)
+}
+
+// pinLoginLimiter caps PIN attempts per client IP and email. A 4-digit PIN
+// has only 10,000 combinations, so unthrottled guessing is trivial.
+func pinLoginLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        5,
+		Expiration: 15 * time.Minute,
+		// Only failed attempts count toward the limit.
+		SkipSuccessfulRequests: true,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			var body struct {
+				Email string `json:"email"`
+			}
+			_ = c.BodyParser(&body)
+			return c.IP() + "|" + strings.ToLower(strings.TrimSpace(body.Email))
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"message": "Too many PIN attempts. Please try again later.",
+			})
+		},
+	})
 }

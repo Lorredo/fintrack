@@ -579,62 +579,37 @@ func (h *AuthHandler) PinLogin(c *fiber.Ctx) error {
 		})
 	}
 
-	if len(req.PIN) != 4 {
+	if errs := validator.ValidateStruct(req); errs != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "PIN must be exactly 4 digits",
+			"message": "Validation failed",
+			"errors":  errs,
 		})
 	}
 
 	var user models.User
 	var pinHash *string
 	var avatarURL *string
-	var err error
+	err := database.Pool.QueryRow(
+		context.Background(),
+		`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'email'), avatar_url, pin_hash, created_at, updated_at
+		 FROM users WHERE email = $1`,
+		req.Email,
+	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &avatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
 
-	if req.Email != "" {
-		err = database.Pool.QueryRow(
-			context.Background(),
-			`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'email'), avatar_url, pin_hash, created_at, updated_at
-			 FROM users WHERE email = $1`,
-			req.Email,
-		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &avatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
-	} else {
-		err = database.Pool.QueryRow(
-			context.Background(),
-			`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'email'), avatar_url, pin_hash, created_at, updated_at
-			 FROM users ORDER BY created_at ASC LIMIT 1`,
-		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &avatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
-	}
-
-	if err == pgx.ErrNoRows {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "No account found",
-		})
-	}
-	if err != nil {
+	if err != nil && err != pgx.ErrNoRows {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to look up user",
 		})
 	}
 
-	// If no PIN set yet, automatically set this PIN as their initial PIN!
-	if pinHash == nil || *pinHash == "" {
-		newHash, hashErr := bcrypt.GenerateFromPassword([]byte(req.PIN), bcrypt.DefaultCost)
-		if hashErr == nil {
-			strHash := string(newHash)
-			_, _ = database.Pool.Exec(
-				context.Background(),
-				`UPDATE users SET pin_hash = $1, updated_at = NOW() WHERE id = $2`,
-				strHash, user.ID,
-			)
-			pinHash = &strHash
-		}
-	} else {
-		// Compare against stored PIN hash
-		if err := bcrypt.CompareHashAndPassword([]byte(*pinHash), []byte(req.PIN)); err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Incorrect PIN",
-			})
-		}
+	// Same response for unknown email, no PIN set, and wrong PIN so the
+	// endpoint can't be used to probe which accounts exist. A PIN can only
+	// be set by an already-authenticated user via POST /auth/pin.
+	if err == pgx.ErrNoRows || pinHash == nil || *pinHash == "" ||
+		bcrypt.CompareHashAndPassword([]byte(*pinHash), []byte(req.PIN)) != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid email or PIN",
+		})
 	}
 
 	user.AvatarURL = avatarURL

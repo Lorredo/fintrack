@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Image, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Image, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PinDots } from '../components/PinDots';
 import { PinKeypad } from '../components/PinKeypad';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
+import LoginForm from '../components/LoginForm';
 import { PinService } from '../services/pin.service';
 import { BiometricsService, type BiometricAuthType } from '../services/biometrics.service';
 import { AuthService } from '../services/auth.service';
@@ -29,6 +30,11 @@ export default function LoginScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<BiometricAuthType>('none');
   const [email] = useState(() => AuthService.getRememberedEmail() || '');
+  // PIN login needs to know which account it's unlocking, so without a
+  // remembered email or an active session fall back to email & password.
+  const [mode, setMode] = useState<'pin' | 'password'>(() =>
+    email || storage.get(StorageKeys.ACCESS_TOKEN) ? 'pin' : 'password',
+  );
 
   const handleUnlockSuccess = useCallback(() => {
     unlock();
@@ -110,7 +116,7 @@ export default function LoginScreen() {
 
       // 3. If logged out or local hash missing, authenticate via pin-login
       try {
-        await AuthService.pinLogin(nextPin, email || undefined);
+        await AuthService.pinLogin(nextPin, email);
         unlock();
         toast.success('Welcome back!');
         router.replace('/');
@@ -165,31 +171,53 @@ export default function LoginScreen() {
               />
             )}
             <Text style={styles.welcomeTitle}>
-              {savedUser?.firstName ? `Welcome back, ${displayName}!` : 'FinTrack Security PIN'}
+              {savedUser?.firstName
+                ? `Welcome back, ${displayName}!`
+                : mode === 'password'
+                  ? 'Welcome to FinTrack'
+                  : 'FinTrack Security PIN'}
             </Text>
             <Text style={styles.welcomeSubtitle}>
-              {hasConfiguredPin
-                ? 'Enter your 4-digit PIN to unlock'
-                : 'Enter 4 digits to unlock or set your PIN'}
+              {mode === 'password'
+                ? 'Sign in with your email and password'
+                : 'Enter your 4-digit PIN to unlock'}
             </Text>
           </View>
 
-          {/* PIN Dots Display */}
-          <View style={styles.dotsWrapper}>
-            <PinDots enteredLength={pin.length} hasError={hasError} />
-          </View>
+          {mode === 'password' ? (
+            <View style={styles.formWrapper}>
+              <LoginForm onSuccess={handleUnlockSuccess} />
+              <View style={styles.linkRow}>
+                <Text style={styles.linkHint}>{"Don't have an account? "}</Text>
+                <Pressable onPress={() => router.push('/register')}>
+                  <Text style={styles.linkText}>Register</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* PIN Dots Display */}
+              <View style={styles.dotsWrapper}>
+                <PinDots enteredLength={pin.length} hasError={hasError} />
+              </View>
 
-          {/* PIN Keypad */}
-          <View style={styles.keypadWrapper}>
-            <PinKeypad
-              onDigitPress={handleDigitPress}
-              onDeletePress={handleDeletePress}
-              onBiometricPress={triggerBiometrics}
-              showBiometrics={biometricAvailable && hasConfiguredPin}
-              biometricType={biometricType}
-              disabled={isVerifying}
-            />
-          </View>
+              {/* PIN Keypad */}
+              <View style={styles.keypadWrapper}>
+                <PinKeypad
+                  onDigitPress={handleDigitPress}
+                  onDeletePress={handleDeletePress}
+                  onBiometricPress={triggerBiometrics}
+                  showBiometrics={biometricAvailable && hasConfiguredPin}
+                  biometricType={biometricType}
+                  disabled={isVerifying}
+                />
+              </View>
+
+              <Pressable onPress={() => setMode('password')} disabled={isVerifying}>
+                <Text style={styles.linkText}>Use email & password instead</Text>
+              </Pressable>
+            </>
+          )}
 
           {/* Divider */}
           <View style={styles.dividerRow}>
@@ -254,6 +282,24 @@ const styles = StyleSheet.create({
     color: '#64748B',
     marginTop: 3,
     textAlign: 'center',
+  },
+  formWrapper: {
+    width: '100%',
+    maxWidth: 360,
+  },
+  linkRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  linkHint: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563EB',
   },
   dotsWrapper: {
     alignItems: 'center',

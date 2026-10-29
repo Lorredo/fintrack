@@ -53,7 +53,7 @@ type VerifyPINRequest struct {
 }
 
 type PinLoginRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email" validate:"required,email"`
 	PIN   string `json:"pin" validate:"required,len=4,numeric"`
 }
 

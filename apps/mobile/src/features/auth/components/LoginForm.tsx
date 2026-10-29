@@ -8,7 +8,11 @@ import { Button, Input, FormError } from "@/components/ui";
 import { useApiErrorHandler } from "@/hooks/useApiErrorHandler";
 import { getErrorMessage } from "@/shared/utils/apiErrors";
 
-export default function LoginForm() {
+type LoginFormProps = {
+  onSuccess?: () => void;
+};
+
+export default function LoginForm({ onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [validationError, setValidationError] = useState("");
@@ -35,7 +39,11 @@ export default function LoginForm() {
 
       await loginAsync({ email, password });
 
-      router.goToHome();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.goToHome();
+      }
     } catch (error) {
       handleError(error);
     }

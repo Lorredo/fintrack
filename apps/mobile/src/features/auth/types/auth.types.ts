@@ -60,7 +60,7 @@ export interface VerifyPinRequest {
 
 export interface PinLoginRequest {
   pin: string;
-  email?: string;
+  email: string;
 }
 
 export interface PinResponse {

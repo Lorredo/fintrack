@@ -47,7 +47,7 @@ export class AuthService {
     return this.handleAuthSuccess(response);
   }
 
-  static async pinLogin(pin: string, email?: string) {
+  static async pinLogin(pin: string, email: string) {
     const response = await AuthApi.pinLogin({ pin, email });
     const user = this.handleAuthSuccess(response);
     const hash = await PinService.hashPin(pin);
