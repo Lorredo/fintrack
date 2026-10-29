@@ -11,7 +11,9 @@
     "preview": {
       "env": {
         "NODE_VERSION": "22",
-        "EXPO_PUBLIC_API_URL": "https://fintrack-162y.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://fintrack-162y.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "682216887168-hqedik3sofat58a10vt7uaemcooo5l8j.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "682216887168-r35b05lnr0q4f9plqvu27e86afjeuad3.apps.googleusercontent.com"
       },
       "android": {
         "image": "latest",

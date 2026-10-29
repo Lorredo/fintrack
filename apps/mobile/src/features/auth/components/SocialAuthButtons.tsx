@@ -28,13 +28,29 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
   const [loadingApple, setLoadingApple] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
 
+  // Client IDs from environment variables, with safe fallbacks to prevent
+  // Google.useIdTokenAuthRequest from throwing an unhandled invariant exception at render time
+  // if an env var is missing in a release or CI build.
   const webClientId =
     process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID;
+    process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
+    'placeholder-web-client-id';
   const androidClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+    'placeholder-android-client-id';
   const iosClientId =
-    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+    'placeholder-ios-client-id';
+
+  const isGoogleConfigured = Boolean(
+    Platform.select({
+      android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+      ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+      default:
+        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+        process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+    })
+  );
 
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: Platform.OS === 'android' ? androidClientId : webClientId,
@@ -90,14 +106,11 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
   const handleGooglePress = async () => {
     if (disabled || loadingGoogle || loadingApple) return;
 
-    const hasValidClientId = Platform.OS === 'android' ? !!androidClientId : !!webClientId;
-
-    if (hasValidClientId && request) {
+    if (isGoogleConfigured && request) {
       try {
-        const result = await promptAsync();
-        if (result?.type === 'success' && result.params?.id_token) {
-          await handleRealGoogleAuth(result.params.id_token);
-        }
+        // The success result is handled by the `response` effect above;
+        // handling it here too would sign in twice and show every toast twice.
+        await promptAsync();
       } catch (err: unknown) {
         toast.error(getErrorMessage(err) || 'Failed to open Google sign-in');
       }
