@@ -18,7 +18,7 @@ export default function SecuritySettingsScreen() {
   const [biometricType, setBiometricType] = useState<BiometricAuthType>('none');
   const [biometricEnabled, setBiometricEnabled] = useState(() => BiometricsService.isEnabledInSettings());
   const [autoLockTimeout, setAutoLockTimeout] = useState(() => {
-    return storage.get('FINTRACK_AUTOLOCK_TIMEOUT') || '30s';
+    return storage.get(StorageKeys.AUTO_LOCK_TIMEOUT) || '30s';
   });
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function SecuritySettingsScreen() {
 
   const handleSelectTimeout = (timeout: string) => {
     setAutoLockTimeout(timeout);
-    storage.set('FINTRACK_AUTOLOCK_TIMEOUT', timeout);
+    storage.set(StorageKeys.AUTO_LOCK_TIMEOUT, timeout);
     toast.success('Auto-lock timeout updated');
   };
 

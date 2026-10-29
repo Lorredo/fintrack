@@ -1,30 +1,52 @@
 import { create } from 'zustand';
+import { storage, StorageKeys } from '@/lib/storage';
 
 interface LockState {
   isLocked: boolean;
-  lastActiveTimestamp: number;
+  backgroundedAt: number | null;
   lock: () => void;
   unlock: () => void;
-  recordActive: () => void;
-  checkLockTimeout: (gracePeriodMs?: number) => boolean;
+  recordBackground: () => void;
+  checkLockTimeout: () => boolean;
 }
 
+// Auto-lock options chosen on the Security screen
+const AUTO_LOCK_TIMEOUTS_MS: Record<string, number> = {
+  '0s': 0,
+  '30s': 30 * 1000,
+  '1m': 60 * 1000,
+  '5m': 5 * 60 * 1000,
+};
+
 // Default 30-second grace period before requiring PIN on app resume
-const DEFAULT_GRACE_PERIOD_MS = 30 * 1000;
+const DEFAULT_GRACE_PERIOD_MS = AUTO_LOCK_TIMEOUTS_MS['30s'];
+
+export function getAutoLockTimeoutMs(): number {
+  const value = storage.get(StorageKeys.AUTO_LOCK_TIMEOUT);
+  return (value ? AUTO_LOCK_TIMEOUTS_MS[value] : undefined) ?? DEFAULT_GRACE_PERIOD_MS;
+}
 
 export const useLockStore = create<LockState>((set, get) => ({
   isLocked: false,
-  lastActiveTimestamp: Date.now(),
+  backgroundedAt: null,
 
   lock: () => set({ isLocked: true }),
 
-  unlock: () => set({ isLocked: false, lastActiveTimestamp: Date.now() }),
+  // Clearing backgroundedAt means a resume right after unlocking (e.g. once a
+  // biometric prompt closes) doesn't lock the app again.
+  unlock: () => set({ isLocked: false, backgroundedAt: null }),
 
-  recordActive: () => set({ lastActiveTimestamp: Date.now() }),
+  // Keep the earliest time so 'inactive' followed by 'background' counts from the first.
+  recordBackground: () =>
+    set((state) => ({ backgroundedAt: state.backgroundedAt ?? Date.now() })),
 
-  checkLockTimeout: (gracePeriodMs = DEFAULT_GRACE_PERIOD_MS) => {
-    const elapsed = Date.now() - get().lastActiveTimestamp;
-    if (elapsed > gracePeriodMs) {
+  checkLockTimeout: () => {
+    const { backgroundedAt } = get();
+    if (backgroundedAt === null) return false;
+
+    const elapsed = Date.now() - backgroundedAt;
+    set({ backgroundedAt: null });
+    if (elapsed >= getAutoLockTimeoutMs()) {
       set({ isLocked: true });
       return true;
     }
