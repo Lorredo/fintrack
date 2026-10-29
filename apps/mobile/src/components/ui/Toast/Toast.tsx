@@ -4,11 +4,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ToastProps } from './Toast.types';
 import { ToastType } from './Toast.types';
 
-const typeConfig: Record<ToastType, { borderColor: string; iconName: 'check-circle' | 'alert-circle' | 'alert' | 'information'; iconColor: string }> = {
-  success: { borderColor: '#22C55E', iconName: 'check-circle', iconColor: '#22C55E' },
-  error: { borderColor: '#EF4444', iconName: 'alert-circle', iconColor: '#EF4444' },
-  warning: { borderColor: '#F59E0B', iconName: 'alert', iconColor: '#F59E0B' },
-  info: { borderColor: '#2563EB', iconName: 'information', iconColor: '#2563EB' },
+const typeConfig: Record<ToastType, { iconName: 'check-circle' | 'alert-circle' | 'alert' | 'information'; iconColor: string }> = {
+  success: { iconName: 'check-circle', iconColor: '#22C55E' },
+  error: { iconName: 'alert-circle', iconColor: '#EF4444' },
+  warning: { iconName: 'alert', iconColor: '#F59E0B' },
+  info: { iconName: 'information', iconColor: '#2563EB' },
 };
 
 export default function Toast({
@@ -24,8 +24,6 @@ export default function Toast({
       className="flex-row items-center bg-surface rounded-xl px-md py-sm mb-sm"
       style={[
         {
-          borderLeftWidth: 4,
-          borderLeftColor: config.borderColor,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 2 },
           shadowOpacity: 0.08,

@@ -16,6 +16,10 @@ import type {
 } from '../types/auth.types';
 import { API_ENDPOINTS } from '@/shared/constants/api';
 
+// The free Render instance can take most of a minute to wake up, and a social
+// sign-in is often the first request after install.
+const SOCIAL_LOGIN_TIMEOUT_MS = 90_000;
+
 export class AuthApi {
   static async login(
     payload: LoginRequest,
@@ -34,6 +38,7 @@ export class AuthApi {
     const { data } = await api.post<LoginResponse>(
       API_ENDPOINTS.AUTH.GOOGLE,
       payload,
+      { timeout: SOCIAL_LOGIN_TIMEOUT_MS },
     );
 
     return data;
@@ -45,6 +50,7 @@ export class AuthApi {
     const { data } = await api.post<LoginResponse>(
       API_ENDPOINTS.AUTH.APPLE,
       payload,
+      { timeout: SOCIAL_LOGIN_TIMEOUT_MS },
     );
 
     return data;

@@ -35,18 +35,14 @@ export interface AuthResponse {
   message: string;
 }
 
+// The server reads the user's identity from the verified token only.
 export interface GoogleAuthRequest {
   idToken: string;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  avatarUrl?: string;
 }
 
 export interface AppleAuthRequest {
   identityToken: string;
-  user?: string;
-  email?: string;
+  // Apple shares the name only once, on first sign-in.
   fullName?: string;
 }
 

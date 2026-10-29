@@ -7,7 +7,6 @@ import type {
   RegisterRequest,
   LoginResponse,
   AppleAuthRequest,
-  GoogleAuthRequest,
 } from '../types/auth.types';
 
 export class AuthService {
@@ -36,9 +35,8 @@ export class AuthService {
     return this.handleAuthSuccess(response);
   }
 
-  static async googleLogin(payload: GoogleAuthRequest | string) {
-    const req = typeof payload === 'string' ? { idToken: payload } : payload;
-    const response = await AuthApi.googleLogin(req);
+  static async googleLogin(idToken: string) {
+    const response = await AuthApi.googleLogin({ idToken });
     return this.handleAuthSuccess(response);
   }
 

@@ -1,46 +1,23 @@
-import { useCallback } from 'react';
+import { useMemo } from 'react';
 import { useToastStore } from '../store/toast.store';
 import type { ToastType } from '@/components/ui/Toast/Toast.types';
 
+// Returns a stable object and doesn't subscribe to the toast list, so showing
+// a toast never re-renders the caller (and never re-fires effects that
+// depend on it).
 export function useToast() {
   const addToast = useToastStore((state) => state.addToast);
   const removeToast = useToastStore((state) => state.removeToast);
-  const toasts = useToastStore((state) => state.toasts);
 
-  const toast = useCallback(
-    (message: string, type: ToastType = 'info') => {
-      addToast(message, type);
-    },
-    [addToast],
-  );
-
-  const success = useCallback(
-    (message: string) => toast(message, 'success'),
-    [toast],
-  );
-
-  const error = useCallback(
-    (message: string) => toast(message, 'error'),
-    [toast],
-  );
-
-  const warning = useCallback(
-    (message: string) => toast(message, 'warning'),
-    [toast],
-  );
-
-  const info = useCallback(
-    (message: string) => toast(message, 'info'),
-    [toast],
-  );
-
-  return {
-    toasts,
-    toast,
-    success,
-    error,
-    warning,
-    info,
-    dismiss: removeToast,
-  };
+  return useMemo(() => {
+    const toast = (message: string, type: ToastType = 'info') => addToast(message, type);
+    return {
+      toast,
+      success: (message: string) => toast(message, 'success'),
+      error: (message: string) => toast(message, 'error'),
+      warning: (message: string) => toast(message, 'warning'),
+      info: (message: string) => toast(message, 'info'),
+      dismiss: removeToast,
+    };
+  }, [addToast, removeToast]);
 }
