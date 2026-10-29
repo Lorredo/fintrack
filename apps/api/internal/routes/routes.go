@@ -26,8 +26,8 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	auth.Post("/register", authHandler.Register)
 	auth.Post("/login", authHandler.Login)
 	auth.Post("/pin-login", pinLoginLimiter(), authHandler.PinLogin)
-	auth.Post("/google", authHandler.GoogleLogin)
-	auth.Post("/apple", authHandler.AppleLogin)
+	auth.Post("/google", socialLoginLimiter(), authHandler.GoogleLogin)
+	auth.Post("/apple", socialLoginLimiter(), authHandler.AppleLogin)
 	auth.Post("/refresh", authHandler.Refresh)
 
 	// Auth routes (protected)
@@ -92,6 +92,20 @@ func pinLoginLimiter() fiber.Handler {
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"message": "Too many PIN attempts. Please try again later.",
+			})
+		},
+	})
+}
+
+// socialLoginLimiter throttles Google/Apple sign-in per client IP. Each
+// request costs a token verification and a database write.
+func socialLoginLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        10,
+		Expiration: time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+				"message": "Too many sign-in attempts. Please try again in a minute.",
 			})
 		},
 	})

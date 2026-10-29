@@ -29,19 +29,17 @@ type RegisterRequest struct {
 	Password  string `json:"password" validate:"required,min=8"`
 }
 
+// Identity (email, name, avatar) comes only from the verified ID token.
 type GoogleAuthRequest struct {
-	IDToken   string `json:"idToken" validate:"required"`
-	Email     string `json:"email"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	AvatarURL string `json:"avatarUrl"`
+	IDToken string `json:"idToken" validate:"required"`
 }
 
+// Apple puts the email in the verified identity token but only sends the
+// user's name to the app, once, on first sign-in, so the name is taken from
+// the request.
 type AppleAuthRequest struct {
 	IdentityToken string `json:"identityToken" validate:"required"`
-	Email         string `json:"email"`
-	FirstName     string `json:"firstName"`
-	LastName      string `json:"lastName"`
+	FullName      string `json:"fullName"`
 }
 
 type SetPINRequest struct {

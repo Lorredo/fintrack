@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Lorredo/fintrack/api/internal/database"
 	"github.com/Lorredo/fintrack/api/internal/models"
+	"github.com/Lorredo/fintrack/api/internal/oidc"
 	"github.com/Lorredo/fintrack/api/internal/validator"
 )
 
@@ -20,13 +22,17 @@ type AuthHandler struct {
 	jwtSecret        string
 	jwtAccessExpiry  time.Duration
 	jwtRefreshExpiry time.Duration
+	googleVerifier   *oidc.Verifier
+	appleVerifier    *oidc.Verifier
 }
 
-func NewAuthHandler(secret string, accessExpiry, refreshExpiry time.Duration) *AuthHandler {
+func NewAuthHandler(secret string, accessExpiry, refreshExpiry time.Duration, googleVerifier, appleVerifier *oidc.Verifier) *AuthHandler {
 	return &AuthHandler{
 		jwtSecret:        secret,
 		jwtAccessExpiry:  accessExpiry,
 		jwtRefreshExpiry: refreshExpiry,
+		googleVerifier:   googleVerifier,
+		appleVerifier:    appleVerifier,
 	}
 }
 
@@ -305,103 +311,33 @@ func (h *AuthHandler) GoogleLogin(c *fiber.Ctx) error {
 			"message": "Invalid request body",
 		})
 	}
-
-	if req.IDToken == "" {
+	if err := validator.ValidateStruct(req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "idToken is required",
 		})
 	}
 
-	email := req.Email
-	firstName := req.FirstName
-	lastName := req.LastName
-	avatarURL := req.AvatarURL
-
-	if email == "" {
-		claims := jwt.MapClaims{}
-		token, _, err := jwt.NewParser().ParseUnverified(req.IDToken, claims)
-		if err == nil && token != nil {
-			if e, ok := claims["email"].(string); ok {
-				email = e
-			}
-			if fn, ok := claims["given_name"].(string); ok && firstName == "" {
-				firstName = fn
-			}
-			if ln, ok := claims["family_name"].(string); ok && lastName == "" {
-				lastName = ln
-			}
-			if pic, ok := claims["picture"].(string); ok && avatarURL == "" {
-				avatarURL = pic
-			}
-		}
-	}
-
-	if email == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "Unable to determine email from Google sign-in",
+	claims, err := h.googleVerifier.Verify(c.Context(), req.IDToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid Google sign-in",
 		})
 	}
 
+	email, _ := claims["email"].(string)
+	if verified, _ := claims["email_verified"].(bool); email == "" || !verified {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Your Google account email is not verified",
+		})
+	}
+	firstName, _ := claims["given_name"].(string)
+	lastName, _ := claims["family_name"].(string)
+	avatarURL, _ := claims["picture"].(string)
 	if firstName == "" {
 		firstName = "User"
 	}
 
-	var user models.User
-	var pinHash *string
-	err := database.Pool.QueryRow(
-		context.Background(),
-		`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'google'), avatar_url, pin_hash, created_at, updated_at
-		 FROM users WHERE email = $1`,
-		email,
-	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &user.AvatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
-
-	if err == pgx.ErrNoRows {
-		err = database.Pool.QueryRow(
-			context.Background(),
-			`INSERT INTO users (first_name, last_name, email, auth_provider, avatar_url)
-			 VALUES ($1, $2, $3, 'google', $4)
-			 RETURNING id, first_name, last_name, email, auth_provider, avatar_url, created_at, updated_at`,
-			firstName, lastName, email, avatarURL,
-		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &user.AvatarURL, &user.CreatedAt, &user.UpdatedAt)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"message": "Failed to create user",
-			})
-		}
-	} else if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Database query failed",
-		})
-	} else {
-		if user.AvatarURL == nil && avatarURL != "" {
-			_, _ = database.Pool.Exec(context.Background(), `UPDATE users SET avatar_url = $1 WHERE id = $2`, avatarURL, user.ID)
-			user.AvatarURL = &avatarURL
-		}
-	}
-
-	user.HasPIN = pinHash != nil && *pinHash != ""
-
-	accessToken, err := h.generateToken(user.ID, h.jwtAccessExpiry)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to generate access token",
-		})
-	}
-
-	refreshToken, err := h.generateToken(user.ID, h.jwtRefreshExpiry)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Failed to generate refresh token",
-		})
-	}
-
-	return c.JSON(models.LoginResponse{
-		User: user,
-		Tokens: models.AuthTokens{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-		},
-	})
+	return h.socialLogin(c, "google", email, firstName, lastName, avatarURL)
 }
 
 func (h *AuthHandler) AppleLogin(c *fiber.Ctx) error {
@@ -411,63 +347,56 @@ func (h *AuthHandler) AppleLogin(c *fiber.Ctx) error {
 			"message": "Invalid request body",
 		})
 	}
-
-	if req.IdentityToken == "" {
+	if err := validator.ValidateStruct(req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"message": "identityToken is required",
 		})
 	}
 
-	email := req.Email
-	firstName := req.FirstName
-	lastName := req.LastName
-
-	if email == "" {
-		claims := jwt.MapClaims{}
-		token, _, err := jwt.NewParser().ParseUnverified(req.IdentityToken, claims)
-		if err == nil && token != nil {
-			if e, ok := claims["email"].(string); ok {
-				email = e
-			}
-		}
+	claims, err := h.appleVerifier.Verify(c.Context(), req.IdentityToken)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "Invalid Apple sign-in",
+		})
 	}
 
+	email, _ := claims["email"].(string)
 	if email == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"message": "Unable to determine email from Apple sign-in",
 		})
 	}
 
+	firstName, lastName, _ := strings.Cut(strings.TrimSpace(req.FullName), " ")
 	if firstName == "" {
-		firstName = "Apple"
-		lastName = "User"
+		firstName, lastName = "Apple", "User"
+	}
+
+	return h.socialLogin(c, "apple", email, firstName, strings.TrimSpace(lastName), "")
+}
+
+// socialLogin finds or creates the user for a verified provider email and
+// issues tokens. The upsert is a single statement so concurrent first
+// sign-ins can't race into a unique-constraint failure.
+func (h *AuthHandler) socialLogin(c *fiber.Ctx, provider, email, firstName, lastName, avatarURL string) error {
+	var avatar *string
+	if avatarURL != "" {
+		avatar = &avatarURL
 	}
 
 	var user models.User
 	var pinHash *string
 	err := database.Pool.QueryRow(
 		context.Background(),
-		`SELECT id, first_name, last_name, email, COALESCE(auth_provider, 'apple'), avatar_url, pin_hash, created_at, updated_at
-		 FROM users WHERE email = $1`,
-		email,
+		`INSERT INTO users (first_name, last_name, email, auth_provider, avatar_url)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (email) DO UPDATE SET avatar_url = COALESCE(users.avatar_url, EXCLUDED.avatar_url)
+		 RETURNING id, first_name, last_name, email, COALESCE(auth_provider, $4), avatar_url, pin_hash, created_at, updated_at`,
+		firstName, lastName, email, provider, avatar,
 	).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &user.AvatarURL, &pinHash, &user.CreatedAt, &user.UpdatedAt)
-
-	if err == pgx.ErrNoRows {
-		err = database.Pool.QueryRow(
-			context.Background(),
-			`INSERT INTO users (first_name, last_name, email, auth_provider)
-			 VALUES ($1, $2, $3, 'apple')
-			 RETURNING id, first_name, last_name, email, auth_provider, avatar_url, created_at, updated_at`,
-			firstName, lastName, email,
-		).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Email, &user.AuthProvider, &user.AvatarURL, &user.CreatedAt, &user.UpdatedAt)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"message": "Failed to create user",
-			})
-		}
-	} else if err != nil {
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Database query failed",
+			"message": "Failed to sign in",
 		})
 	}
 

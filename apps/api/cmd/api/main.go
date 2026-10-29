@@ -15,6 +15,7 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/config"
 	"github.com/Lorredo/fintrack/api/internal/database"
 	"github.com/Lorredo/fintrack/api/internal/handlers"
+	"github.com/Lorredo/fintrack/api/internal/oidc"
 	"github.com/Lorredo/fintrack/api/internal/routes"
 	"github.com/Lorredo/fintrack/api/internal/services"
 )
@@ -53,6 +54,8 @@ func main() {
 		cfg.JWTSecret,
 		cfg.JWTAccessExpiry,
 		cfg.JWTRefreshExpiry,
+		oidc.NewVerifier(oidc.GoogleJWKSURL, oidc.GoogleIssuers, cfg.GoogleClientIDs),
+		oidc.NewVerifier(oidc.AppleJWKSURL, oidc.AppleIssuers, []string{cfg.AppleBundleID}),
 	)
 
 	transactionService := services.NewTransactionService(database.Pool)
