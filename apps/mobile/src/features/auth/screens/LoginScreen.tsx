@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, Image, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { PinKeypad } from '../components/PinKeypad';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import LoginForm from '../components/LoginForm';
 import { PinService } from '../services/pin.service';
-import { BiometricsService, type BiometricAuthType } from '../services/biometrics.service';
 import { AuthService } from '../services/auth.service';
 import { useAuthStore } from '../store/auth.store';
 import { useLockStore } from '../store/lock.store';
@@ -22,14 +21,11 @@ export default function LoginScreen() {
   const user = useAuthStore((state) => state.user);
   const unlock = useLockStore((state) => state.unlock);
 
-  const hasConfiguredPin = PinService.hasPin();
-
   const [pin, setPin] = useState('');
   const [hasError, setHasError] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricType, setBiometricType] = useState<BiometricAuthType>('none');
   const [email] = useState(() => AuthService.getRememberedEmail() || '');
+  const [firstName] = useState(() => AuthService.getSavedFirstName());
   // PIN login needs to know which account it's unlocking, so without a
   // remembered email or an active session fall back to email & password.
   const [mode, setMode] = useState<'pin' | 'password'>(() =>
@@ -40,36 +36,6 @@ export default function LoginScreen() {
     unlock();
     router.replace('/');
   }, [unlock, router]);
-
-  const triggerBiometrics = useCallback(async () => {
-    const available = await BiometricsService.isAvailable();
-    if (!available) return;
-
-    const success = await BiometricsService.authenticate('Unlock FinTrack');
-    if (success) {
-      handleUnlockSuccess();
-    }
-  }, [handleUnlockSuccess]);
-
-  // Check biometric capabilities on mount and prompt if enabled and has PIN
-  useEffect(() => {
-    async function initBiometrics() {
-      const avail = await BiometricsService.isAvailable();
-      setBiometricAvailable(avail);
-
-      if (avail) {
-        const type = await BiometricsService.getBiometricType();
-        setBiometricType(type);
-
-        if (BiometricsService.isEnabledInSettings() && PinService.hasPin()) {
-          setTimeout(() => {
-            triggerBiometrics();
-          }, 350);
-        }
-      }
-    }
-    initBiometrics();
-  }, [triggerBiometrics]);
 
   // Handle keypad digit press
   const handleDigitPress = async (digit: string) => {
@@ -139,9 +105,6 @@ export default function LoginScreen() {
     setPin((prev) => prev.slice(0, -1));
   };
 
-  const savedUser = user || (email ? { firstName: email.split('@')[0] } : null);
-  const displayName = savedUser?.firstName ? savedUser.firstName : 'there';
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -171,11 +134,13 @@ export default function LoginScreen() {
               />
             )}
             <Text style={styles.welcomeTitle}>
-              {savedUser?.firstName
-                ? `Welcome back, ${displayName}!`
-                : mode === 'password'
-                  ? 'Welcome to FinTrack'
-                  : 'FinTrack Security PIN'}
+              {firstName
+                ? `Welcome back, ${firstName}!`
+                : email
+                  ? 'Welcome back!'
+                  : mode === 'password'
+                    ? 'Welcome to FinTrack'
+                    : 'FinTrack Security PIN'}
             </Text>
             <Text style={styles.welcomeSubtitle}>
               {mode === 'password'
@@ -206,9 +171,6 @@ export default function LoginScreen() {
                 <PinKeypad
                   onDigitPress={handleDigitPress}
                   onDeletePress={handleDeletePress}
-                  onBiometricPress={triggerBiometrics}
-                  showBiometrics={biometricAvailable && hasConfiguredPin}
-                  biometricType={biometricType}
                   disabled={isVerifying}
                 />
               </View>

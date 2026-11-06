@@ -8,6 +8,7 @@ import type {
   LoginResponse,
   AppleAuthRequest,
 } from '../types/auth.types';
+import type { User } from '../types/user.types';
 
 export class AuthService {
   private static handleAuthSuccess(response: LoginResponse) {
@@ -82,5 +83,16 @@ export class AuthService {
 
   static setRememberedEmail(email: string): void {
     storage.set(StorageKeys.REMEMBERED_EMAIL, email);
+  }
+
+  // A normal logout keeps the saved user, so the login screen can still greet them.
+  static getSavedFirstName(): string | undefined {
+    const savedUser = storage.get(StorageKeys.USER);
+    if (!savedUser) return undefined;
+    try {
+      return (JSON.parse(savedUser) as User).firstName || undefined;
+    } catch {
+      return undefined;
+    }
   }
 }
