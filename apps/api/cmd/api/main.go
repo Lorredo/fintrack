@@ -50,10 +50,9 @@ func main() {
 	}))
 
 	// Handlers
+	sessionService := services.NewSessionService(database.Pool, cfg.JWTSecret, cfg.JWTAccessExpiry, cfg.JWTRefreshExpiry)
 	authHandler := handlers.NewAuthHandler(
-		cfg.JWTSecret,
-		cfg.JWTAccessExpiry,
-		cfg.JWTRefreshExpiry,
+		sessionService,
 		oidc.NewVerifier(oidc.GoogleJWKSURL, oidc.GoogleIssuers, cfg.GoogleClientIDs),
 		oidc.NewVerifier(oidc.AppleJWKSURL, oidc.AppleIssuers, []string{cfg.AppleBundleID}),
 	)
@@ -74,7 +73,7 @@ func main() {
 	accountHandler := handlers.NewAccountHandler(accountService)
 
 	// Routes
-	routes.Setup(app, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler, accountHandler)
+	routes.Setup(app, cfg.JWTSecret, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler, accountHandler)
 
 	// Graceful shutdown
 	go func() {

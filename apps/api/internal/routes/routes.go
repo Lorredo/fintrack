@@ -11,8 +11,9 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/middleware"
 )
 
-func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler) {
+func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler) {
 	api := app.Group("/api/v1")
+	authRequired := middleware.AuthRequired(jwtSecret)
 
 	// Health check
 	api.Get("/health", func(c *fiber.Ctx) error {
@@ -24,22 +25,26 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	// Auth routes (public)
 	auth := api.Group("/auth")
 	auth.Post("/register", authHandler.Register)
-	auth.Post("/login", authHandler.Login)
-	auth.Post("/pin-login", pinLoginLimiter(), authHandler.PinLogin)
+	auth.Post("/login", credentialLimiter(10, "Too many sign-in attempts. Please try again later."), authHandler.Login)
+	auth.Post("/pin-login", credentialLimiter(5, "Too many PIN attempts. Please try again later."), authHandler.PinLogin)
+	auth.Post("/recover", credentialLimiter(10, "Too many recovery attempts. Please try again later."), authHandler.Recover)
+	auth.Post("/recover/google", socialLoginLimiter(), authHandler.RecoverWithGoogle)
 	auth.Post("/google", socialLoginLimiter(), authHandler.GoogleLogin)
 	auth.Post("/apple", socialLoginLimiter(), authHandler.AppleLogin)
 	auth.Post("/refresh", authHandler.Refresh)
 
 	// Auth routes (protected)
 
-	auth.Post("/logout", middleware.AuthRequired(), authHandler.Logout)
-	auth.Get("/me", middleware.AuthRequired(), authHandler.Me)
-	auth.Post("/pin", middleware.AuthRequired(), authHandler.SetPIN)
-	auth.Post("/pin/verify", middleware.AuthRequired(), authHandler.VerifyPIN)
-	auth.Delete("/wipe-data", middleware.AuthRequired(), authHandler.WipeData)
+	auth.Post("/logout", authRequired, authHandler.Logout)
+	auth.Post("/logout-all", authRequired, authHandler.LogoutAll)
+	auth.Post("/recovery-code", authRequired, authHandler.CreateRecoveryCode)
+	auth.Get("/me", authRequired, authHandler.Me)
+	auth.Post("/pin", authRequired, authHandler.SetPIN)
+	auth.Post("/pin/verify", authRequired, authHandler.VerifyPIN)
+	auth.Delete("/wipe-data", authRequired, authHandler.WipeData)
 
 	// Transaction routes (protected)
-	transactions := api.Group("/transactions", middleware.AuthRequired())
+	transactions := api.Group("/transactions", authRequired)
 	transactions.Get("/categories/all", transactionHandler.Categories)
 	transactions.Get("/", transactionHandler.List)
 	transactions.Get("/:id", transactionHandler.Get)
@@ -48,11 +53,11 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	transactions.Delete("/:id", transactionHandler.Delete)
 
 	// Dashboard routes (protected)
-	dashboard := api.Group("/dashboard", middleware.AuthRequired())
+	dashboard := api.Group("/dashboard", authRequired)
 	dashboard.Get("/summary", dashboardHandler.Summary)
 
 	// Budget routes (protected)
-	budgets := api.Group("/budgets", middleware.AuthRequired())
+	budgets := api.Group("/budgets", authRequired)
 	budgets.Post("/rebalance", budgetHandler.Rebalance)
 	budgets.Get("/", budgetHandler.List)
 	budgets.Get("/:id", budgetHandler.Get)
@@ -61,13 +66,13 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	budgets.Delete("/:id", budgetHandler.Delete)
 
 	// Report routes (protected)
-	reports := api.Group("/reports", middleware.AuthRequired())
+	reports := api.Group("/reports", authRequired)
 	reports.Get("/trends", reportHandler.Trends)
 	reports.Get("/categories", reportHandler.Categories)
 	reports.Get("/export", reportHandler.Export)
 
 	// Account routes (protected)
-	accounts := api.Group("/accounts", middleware.AuthRequired())
+	accounts := api.Group("/accounts", authRequired)
 	accounts.Get("/", accountHandler.List)
 	accounts.Post("/", accountHandler.Create)
 	accounts.Post("/:id/balance", accountHandler.SetBalance)
@@ -75,24 +80,24 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	accounts.Delete("/:id", accountHandler.Delete)
 }
 
-// pinLoginLimiter caps PIN attempts per client IP and email. A 4-digit PIN
-// has only 10,000 combinations, so unthrottled guessing is trivial.
-func pinLoginLimiter() fiber.Handler {
+// credentialLimiter caps guesses per client IP and email. Only failed attempts
+// count, and a 4-digit PIN has just 10,000 combinations, so unthrottled
+// guessing is trivial.
+func credentialLimiter(max int, message string) fiber.Handler {
 	return limiter.New(limiter.Config{
-		Max:        5,
-		Expiration: 15 * time.Minute,
-		// Only failed attempts count toward the limit.
+		Max:                    max,
+		Expiration:             15 * time.Minute,
 		SkipSuccessfulRequests: true,
 		KeyGenerator: func(c *fiber.Ctx) string {
 			var body struct {
 				Email string `json:"email"`
 			}
 			_ = c.BodyParser(&body)
-			return c.IP() + "|" + strings.ToLower(strings.TrimSpace(body.Email))
+			return c.Path() + "|" + c.IP() + "|" + strings.ToLower(strings.TrimSpace(body.Email))
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"message": "Too many PIN attempts. Please try again later.",
+				"message": message,
 			})
 		},
 	})

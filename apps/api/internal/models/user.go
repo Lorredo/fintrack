@@ -3,18 +3,20 @@ package models
 import "time"
 
 type User struct {
-	ID             string    `json:"id"`
-	FirstName      string    `json:"firstName"`
-	LastName       string    `json:"lastName"`
-	Email          string    `json:"email"`
-	PasswordHash   *string   `json:"-"`
-	AuthProvider   string    `json:"authProvider"`
-	AuthProviderID *string   `json:"-"`
-	AvatarURL      *string   `json:"avatarUrl,omitempty"`
-	PINHash        *string   `json:"-"`
-	HasPIN         bool      `json:"hasPin"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ID              string    `json:"id"`
+	FirstName       string    `json:"firstName"`
+	LastName        string    `json:"lastName"`
+	Email           string    `json:"email"`
+	PasswordHash    *string   `json:"-"`
+	AuthProvider    string    `json:"authProvider"`
+	AuthProviderID  *string   `json:"-"`
+	AvatarURL       *string   `json:"avatarUrl,omitempty"`
+	PINHash         *string   `json:"-"`
+	HasPIN          bool      `json:"hasPin"`
+	HasPassword     bool      `json:"hasPassword"`
+	HasRecoveryCode bool      `json:"hasRecoveryCode"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
 type LoginRequest struct {
@@ -80,6 +82,31 @@ type RefreshTokenResponse struct {
 }
 
 type AuthResponse struct {
-	Message string `json:"message"`
+	Message      string `json:"message"`
+	RecoveryCode string `json:"recoveryCode,omitempty"`
 }
 
+type LogoutRequest struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
+// Either credential confirms it's really the account owner.
+type CreateRecoveryCodeRequest struct {
+	Password string `json:"password"`
+	PIN      string `json:"pin" validate:"omitempty,len=4,numeric"`
+}
+
+type RecoverRequest struct {
+	Email       string `json:"email" validate:"required,email"`
+	Code        string `json:"code" validate:"required"`
+	NewPassword string `json:"newPassword" validate:"required,min=8,max=72"`
+}
+
+type GoogleRecoverRequest struct {
+	IDToken     string `json:"idToken" validate:"required"`
+	NewPassword string `json:"newPassword" validate:"required,min=8,max=72"`
+}
+
+type RecoveryCodeResponse struct {
+	RecoveryCode string `json:"recoveryCode"`
+}

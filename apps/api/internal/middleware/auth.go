@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"os"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func 
-AuthRequired() fiber.Handler {
+// AuthRequired accepts access tokens only, so a refresh token can't be used to
+// call the API.
+func AuthRequired(secret string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
@@ -20,11 +19,6 @@ AuthRequired() fiber.Handler {
 		tokenString := authHeader
 		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
 			tokenString = authHeader[7:]
-		}
-
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "3f3c8766b9eb689a689af8b23b72faf1"
 		}
 
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -44,6 +38,12 @@ AuthRequired() fiber.Handler {
 		if !ok {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "Invalid token claims",
+			})
+		}
+
+		if claims["typ"] == "refresh" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Invalid or expired token",
 			})
 		}
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -23,10 +24,15 @@ type Config struct {
 func Load() *Config {
 	_ = godotenv.Load()
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET is required")
+	}
+
 	return &Config{
 		ServerPort:       getEnv("SERVER_PORT", "8080"),
 		DatabaseURL:      getEnv("DATABASE_URL", "postgres://fintrack:fintrack@localhost:5434/fintrack?sslmode=disable"),
-		JWTSecret:        getEnv("JWT_SECRET", "3f3c8766b9eb689a689af8b23b72faf1"),
+		JWTSecret:        jwtSecret,
 		JWTAccessExpiry:  parseDuration(getEnv("JWT_ACCESS_EXPIRY", "15m")),
 		JWTRefreshExpiry: parseDuration(getEnv("JWT_REFRESH_EXPIRY", "168h")), // 7 days
 		MigrationsPath:   getEnv("MIGRATIONS_PATH", "../../../database/migrations"),
