@@ -18,8 +18,10 @@ export const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
-    
+    if (__DEV__) {
+      console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
+    }
+
     const token = storage.get(StorageKeys.ACCESS_TOKEN);
 
     if (token) {
@@ -28,23 +30,5 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    console.log('[API Request Error]', error);
-    return Promise.reject(error);
-  },
-);
-
-// =============================
-// RESPONSE INTERCEPTOR
-// =============================
-
-api.interceptors.response.use(
-  (response) => {
-    console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url} =>`, response.data);
-    return response;
-  },
-  (error) => {
-    console.log('[API Response Error]', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );

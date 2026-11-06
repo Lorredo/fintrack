@@ -9,6 +9,7 @@ import TransactionDetailsModal from '@/features/transactions/components/Transact
 import TransactionRow from '@/features/transactions/components/TransactionRow';
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useAuthStore } from '@/features/auth/store/auth.store';
+import { useCurrentUser } from '@/features/auth/hooks/useCurrentUser';
 import { getGreeting, formatCurrency, formatMonth, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
 import type { Transaction } from '@/features/transactions/types';
@@ -25,6 +26,7 @@ export default function DashboardScreen() {
   const [activeWalletId, setActiveWalletId] = useState<string | undefined>(undefined);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const { data: accounts } = useAccounts();
+  const { data: currentUser } = useCurrentUser();
   const month = getLocalISODate().slice(0, 7);
   const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(month, undefined);
 
@@ -269,6 +271,23 @@ export default function DashboardScreen() {
             })}
           </ScrollView>
         </View>
+      )}
+
+      {/* Recovery Code Prompt */}
+      {currentUser?.hasPassword && currentUser.hasRecoveryCode === false && (
+        <Pressable
+          onPress={() => router.push('/security')}
+          accessibilityRole="button"
+          className="active:opacity-70"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFBEB', borderRadius: 16, padding: 14, marginBottom: 20 }}
+        >
+          <MaterialCommunityIcons name="shield-alert-outline" size={22} color="#D97706" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Create a recovery code</Text>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>So you can reset a forgotten password</Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
+        </Pressable>
       )}
 
       {/* Metrics Row */}

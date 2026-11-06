@@ -8,7 +8,10 @@ import type {
   RefreshTokenRequest,
   RefreshTokenResponse,
   GoogleAuthRequest,
+  GoogleRecoverRequest,
   AppleAuthRequest,
+  RecoverRequest,
+  RecoveryCodeResponse,
   SetPinRequest,
   VerifyPinRequest,
   PinLoginRequest,
@@ -17,8 +20,8 @@ import type {
 import { API_ENDPOINTS } from '@/shared/constants/api';
 
 // The free Render instance can take most of a minute to wake up, and a social
-// sign-in is often the first request after install.
-const SOCIAL_LOGIN_TIMEOUT_MS = 90_000;
+// sign-in or account recovery is often the first request it sees.
+const COLD_START_TIMEOUT_MS = 90_000;
 
 export class AuthApi {
   static async login(
@@ -38,7 +41,7 @@ export class AuthApi {
     const { data } = await api.post<LoginResponse>(
       API_ENDPOINTS.AUTH.GOOGLE,
       payload,
-      { timeout: SOCIAL_LOGIN_TIMEOUT_MS },
+      { timeout: COLD_START_TIMEOUT_MS },
     );
 
     return data;
@@ -50,7 +53,7 @@ export class AuthApi {
     const { data } = await api.post<LoginResponse>(
       API_ENDPOINTS.AUTH.APPLE,
       payload,
-      { timeout: SOCIAL_LOGIN_TIMEOUT_MS },
+      { timeout: COLD_START_TIMEOUT_MS },
     );
 
     return data;
@@ -112,11 +115,47 @@ export class AuthApi {
     return data;
   }
 
-  static async logout(): Promise<AuthResponse> {
+  static async logout(refreshToken?: string): Promise<AuthResponse> {
     const { data } =
       await api.post<AuthResponse>(
         API_ENDPOINTS.AUTH.LOGOUT,
+        { refreshToken },
       );
+
+    return data;
+  }
+
+  static async logoutAll(): Promise<AuthResponse> {
+    const { data } = await api.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGOUT_ALL);
+
+    return data;
+  }
+
+  static async recover(payload: RecoverRequest): Promise<RecoveryCodeResponse> {
+    const { data } = await api.post<RecoveryCodeResponse>(
+      API_ENDPOINTS.AUTH.RECOVER,
+      payload,
+      { timeout: COLD_START_TIMEOUT_MS },
+    );
+
+    return data;
+  }
+
+  static async recoverWithGoogle(payload: GoogleRecoverRequest): Promise<AuthResponse> {
+    const { data } = await api.post<AuthResponse>(
+      API_ENDPOINTS.AUTH.RECOVER_GOOGLE,
+      payload,
+      { timeout: COLD_START_TIMEOUT_MS },
+    );
+
+    return data;
+  }
+
+  static async createRecoveryCode(password: string): Promise<RecoveryCodeResponse> {
+    const { data } = await api.post<RecoveryCodeResponse>(
+      API_ENDPOINTS.AUTH.RECOVERY_CODE,
+      { password },
+    );
 
     return data;
   }

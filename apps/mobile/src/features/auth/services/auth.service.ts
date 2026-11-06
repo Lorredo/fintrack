@@ -7,6 +7,8 @@ import type {
   RegisterRequest,
   LoginResponse,
   AppleAuthRequest,
+  GoogleRecoverRequest,
+  RecoverRequest,
 } from '../types/auth.types';
 import type { User } from '../types/user.types';
 
@@ -49,9 +51,8 @@ export class AuthService {
   static async pinLogin(pin: string, email: string) {
     const response = await AuthApi.pinLogin({ pin, email });
     const user = this.handleAuthSuccess(response);
-    const hash = await PinService.hashPin(pin);
-    storage.set(StorageKeys.PIN_HASH, hash);
-    storage.set(StorageKeys.HAS_PIN, 'true');
+    await PinService.storeLocalHash(pin);
+    PinService.resetFailures();
     return user;
   }
 
@@ -59,13 +60,30 @@ export class AuthService {
     return AuthApi.register(payload);
   }
 
+  static recover(payload: RecoverRequest) {
+    return AuthApi.recover(payload);
+  }
+
+  static recoverWithGoogle(payload: GoogleRecoverRequest) {
+    return AuthApi.recoverWithGoogle(payload);
+  }
+
   static async logout(clearDevicePin = false) {
     try {
-      await AuthApi.logout();
+      await AuthApi.logout(storage.get(StorageKeys.REFRESH_TOKEN));
     } catch {
       // Ignore API errors on logout (e.g., token already expired)
     }
 
+    this.clearLocalSession(clearDevicePin);
+  }
+
+  static async logoutAllDevices() {
+    await AuthApi.logoutAll();
+    this.clearLocalSession(false);
+  }
+
+  private static clearLocalSession(clearDevicePin: boolean) {
     storage.remove(StorageKeys.ACCESS_TOKEN);
     storage.remove(StorageKeys.REFRESH_TOKEN);
 

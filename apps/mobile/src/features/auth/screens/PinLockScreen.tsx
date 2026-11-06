@@ -23,8 +23,20 @@ export default function PinLockScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<BiometricAuthType>('none');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [lockRemainingMs, setLockRemainingMs] = useState(() => PinService.getLockState().remainingMs);
+
+  useEffect(() => {
+    if (lockRemainingMs <= 0) return;
+    const timer = setInterval(() => {
+      setLockRemainingMs(PinService.getLockState().remainingMs);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockRemainingMs]);
+
+  const isLocked = lockRemainingMs > 0;
 
   const handleUnlockSuccess = useCallback(() => {
+    PinService.resetFailures();
     unlock();
     router.replace('/');
   }, [unlock, router]);
@@ -60,7 +72,7 @@ export default function PinLockScreen() {
   }, [triggerBiometrics]);
 
   const handleDigitPress = async (digit: string) => {
-    if (isVerifying || pin.length >= 4) return;
+    if (isVerifying || isLocked || pin.length >= 4) return;
     setHasError(false);
 
     const nextPin = pin + digit;
@@ -73,6 +85,16 @@ export default function PinLockScreen() {
       if (isValid) {
         handleUnlockSuccess();
       } else {
+        const lockState = PinService.getLockState();
+        if (lockState.mustSignIn) {
+          toast.error('Too many attempts. Please sign in again.');
+          unlock();
+          await AuthService.logout(true);
+          router.replace('/login');
+          return;
+        }
+
+        setLockRemainingMs(lockState.remainingMs);
         setHasError(true);
         toast.error('Incorrect PIN');
         setTimeout(() => {
@@ -118,7 +140,11 @@ export default function PinLockScreen() {
           <MaterialCommunityIcons name="lock-outline" size={36} color="#2563EB" />
         </View>
         <Text style={styles.title}>Welcome back, {userName}</Text>
-        <Text style={styles.subtitle}>Enter your 4-digit PIN to unlock</Text>
+        <Text style={styles.subtitle}>
+          {isLocked
+            ? `Too many attempts. Try again in ${Math.ceil(lockRemainingMs / 1000)}s`
+            : 'Enter your 4-digit PIN to unlock'}
+        </Text>
       </View>
 
       <View style={styles.dotsSection}>
@@ -132,7 +158,7 @@ export default function PinLockScreen() {
           onBiometricPress={triggerBiometrics}
           showBiometrics={biometricAvailable}
           biometricType={biometricType}
-          disabled={isVerifying}
+          disabled={isVerifying || isLocked}
         />
       </View>
 

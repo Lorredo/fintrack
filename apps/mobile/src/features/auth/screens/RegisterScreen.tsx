@@ -44,14 +44,18 @@ export default function RegisterScreen() {
     try {
       setValidationError('');
       setLoading(true);
-      await AuthService.register({
+      const { recoveryCode } = await AuthService.register({
         firstName,
         lastName,
         email,
         password,
       });
       toast.success('Account created! Please log in.');
-      router.replace('/login');
+      if (recoveryCode) {
+        router.replace({ pathname: '/recovery-code', params: { code: recoveryCode, next: '/login' } });
+      } else {
+        router.replace('/login');
+      }
     } catch (error) {
       handleError(error);
     } finally {

@@ -8,6 +8,7 @@ import {
 } from "./storage";
 
 import { AuthApi } from "@/features/auth/api/auth.api";
+import { API_ENDPOINTS } from "@/shared/constants/api";
 
 import {
   useAuthStore
@@ -40,6 +41,17 @@ function processQueue(
   failedQueue = [];
 
 }
+
+const TOKENLESS_ENDPOINTS: string[] = [
+  API_ENDPOINTS.AUTH.LOGIN,
+  API_ENDPOINTS.AUTH.PIN_LOGIN,
+  API_ENDPOINTS.AUTH.GOOGLE,
+  API_ENDPOINTS.AUTH.APPLE,
+  API_ENDPOINTS.AUTH.REGISTER,
+  API_ENDPOINTS.AUTH.REFRESH,
+  API_ENDPOINTS.AUTH.RECOVER,
+  API_ENDPOINTS.AUTH.RECOVER_GOOGLE,
+];
 
 let interceptorInitialized = false;
 
@@ -109,13 +121,10 @@ error.config;
 
 
 
-const isAuthEndpoint =
-  originalRequest.url?.includes('auth/login') ||
-  originalRequest.url?.includes('auth/pin') ||
-  originalRequest.url?.includes('auth/google') ||
-  originalRequest.url?.includes('auth/apple') ||
-  originalRequest.url?.includes('auth/register') ||
-  originalRequest.url?.includes('auth/refresh');
+// Their 401s mean wrong credentials, not an expired access token.
+const isAuthEndpoint = TOKENLESS_ENDPOINTS.some(
+  (endpoint) => originalRequest.url?.endsWith(endpoint),
+);
 
 if(
  error.response?.status !== 401 ||
@@ -240,7 +249,7 @@ return api(originalRequest);
 
 
 }
-catch(err){
+catch(err:any){
 
 
 processQueue(
@@ -248,6 +257,16 @@ processQueue(
  null
 );
 
+
+// A timeout or lost connection says nothing about the session, so stay
+// signed in unless the server actually rejected it.
+const sessionEnded =
+ err?.response?.status === 401 ||
+ !storage.get(StorageKeys.REFRESH_TOKEN);
+
+if(!sessionEnded){
+ return Promise.reject(error);
+}
 
 
 // Only clear session tokens, do NOT wipe user device PIN and settings

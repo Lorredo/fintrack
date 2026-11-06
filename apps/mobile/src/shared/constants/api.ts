@@ -10,6 +10,10 @@ export const API_ENDPOINTS = {
     PIN: '/api/v1/auth/pin',
     VERIFY_PIN: '/api/v1/auth/pin/verify',
     PIN_LOGIN: '/api/v1/auth/pin-login',
+    LOGOUT_ALL: '/api/v1/auth/logout-all',
+    RECOVER: '/api/v1/auth/recover',
+    RECOVER_GOOGLE: '/api/v1/auth/recover/google',
+    RECOVERY_CODE: '/api/v1/auth/recovery-code',
   },
   TRANSACTIONS: {
     CATEGORIES: '/api/v1/transactions/categories/all',

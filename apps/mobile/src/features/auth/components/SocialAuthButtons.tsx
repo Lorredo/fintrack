@@ -22,7 +22,7 @@ const googleClientIds = {
 
 // Google.useIdTokenAuthRequest throws when the current platform's client ID
 // is missing, so the Google button only renders when it's configured.
-const isGoogleConfigured = Boolean(
+export const isGoogleConfigured = Boolean(
   Platform.select({
     android: googleClientIds.androidClientId,
     ios: googleClientIds.iosClientId,
@@ -143,12 +143,18 @@ export const SocialAuthButtons: React.FC<SocialAuthButtonsProps> = ({
 };
 
 interface GoogleButtonProps {
+  label?: string;
   disabled: boolean;
   onIdToken: (idToken: string) => void;
   onError: (message: string) => void;
 }
 
-const GoogleButton: React.FC<GoogleButtonProps> = ({ disabled, onIdToken, onError }) => {
+export const GoogleButton: React.FC<GoogleButtonProps> = ({
+  label = 'Continue with Google',
+  disabled,
+  onIdToken,
+  onError,
+}) => {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest(googleClientIds);
 
   // Callbacks change identity every render; reading them through a ref keeps
@@ -199,7 +205,7 @@ const GoogleButton: React.FC<GoogleButtonProps> = ({ disabled, onIdToken, onErro
           style={styles.googleIcon}
           resizeMode="contain"
         />
-        <Text style={styles.googleButtonText}>Continue with Google</Text>
+        <Text style={styles.googleButtonText}>{label}</Text>
       </View>
     </Pressable>
   );

@@ -3,12 +3,57 @@ import { storage, StorageKeys } from '@/lib/storage';
 import { AuthApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 
+// Wrong PINs lock the keypad for 30 seconds after the fifth, doubling each
+// time, and the tenth requires a full sign-in.
+const LOCK_AFTER_ATTEMPTS = 5;
+const SIGN_IN_AFTER_ATTEMPTS = 10;
+const BASE_LOCK_MS = 30 * 1000;
+
+export interface PinLockState {
+  remainingMs: number;
+  mustSignIn: boolean;
+}
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export class PinService {
+  private static digest(value: string): Promise<string> {
+    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, value);
+  }
+
   /**
-   * Hashes the 4-digit PIN using SHA-256 for secure local storage and offline unlock.
+   * Saves a salted hash of the PIN for offline unlock.
    */
-  static async hashPin(pin: string): Promise<string> {
-    return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
+  static async storeLocalHash(pin: string): Promise<void> {
+    const salt = toHex(Crypto.getRandomBytes(16));
+    storage.set(StorageKeys.PIN_SALT, salt);
+    storage.set(StorageKeys.PIN_HASH, await this.digest(`${salt}:${pin}`));
+    storage.set(StorageKeys.HAS_PIN, 'true');
+  }
+
+  static getLockState(): PinLockState {
+    const attempts = Number(storage.get(StorageKeys.PIN_FAILED_ATTEMPTS) ?? 0);
+    const lockedUntil = Number(storage.get(StorageKeys.PIN_LOCKED_UNTIL) ?? 0);
+    return {
+      remainingMs: Math.max(lockedUntil - Date.now(), 0),
+      mustSignIn: attempts >= SIGN_IN_AFTER_ATTEMPTS,
+    };
+  }
+
+  static resetFailures(): void {
+    storage.remove(StorageKeys.PIN_FAILED_ATTEMPTS);
+    storage.remove(StorageKeys.PIN_LOCKED_UNTIL);
+  }
+
+  private static recordFailure(): void {
+    const attempts = Number(storage.get(StorageKeys.PIN_FAILED_ATTEMPTS) ?? 0) + 1;
+    storage.set(StorageKeys.PIN_FAILED_ATTEMPTS, String(attempts));
+    if (attempts >= LOCK_AFTER_ATTEMPTS) {
+      const lockMs = BASE_LOCK_MS * 2 ** (attempts - LOCK_AFTER_ATTEMPTS);
+      storage.set(StorageKeys.PIN_LOCKED_UNTIL, String(Date.now() + lockMs));
+    }
   }
 
   /**
@@ -25,9 +70,7 @@ export class PinService {
    * Saves the PIN locally and on the server.
    */
   static async setPin(pin: string): Promise<void> {
-    const hash = await this.hashPin(pin);
-    storage.set(StorageKeys.PIN_HASH, hash);
-    storage.set(StorageKeys.HAS_PIN, 'true');
+    await this.storeLocalHash(pin);
 
     // Update user in auth store and storage so hasPin is reflected immediately
     const currentUser = useAuthStore.getState().user;
@@ -46,24 +89,28 @@ export class PinService {
   }
 
   /**
-   * Verifies PIN against local SHA-256 hash first, with fallback to backend verification.
+   * Verifies PIN against the local hash first, with fallback to backend verification.
+   * Hashes saved before salts were added are upgraded after a correct entry.
    */
   static async verifyPin(pin: string): Promise<boolean> {
     const storedHash = storage.get(StorageKeys.PIN_HASH);
     if (storedHash) {
-      const inputHash = await this.hashPin(pin);
-      if (inputHash === storedHash) {
-        return true;
+      const salt = storage.get(StorageKeys.PIN_SALT);
+      const inputHash = await this.digest(salt ? `${salt}:${pin}` : pin);
+      if (inputHash !== storedHash) {
+        this.recordFailure();
+        return false;
       }
-      return false;
+      this.resetFailures();
+      if (!salt) await this.storeLocalHash(pin);
+      return true;
     }
 
     // If local hash is somehow missing but server has it, verify with server
     try {
       await AuthApi.verifyPin({ pin });
-      const hash = await this.hashPin(pin);
-      storage.set(StorageKeys.PIN_HASH, hash);
-      storage.set(StorageKeys.HAS_PIN, 'true');
+      await this.storeLocalHash(pin);
+      this.resetFailures();
       return true;
     } catch {
       return false;
@@ -75,7 +122,9 @@ export class PinService {
    */
   static clearPin(): void {
     storage.remove(StorageKeys.PIN_HASH);
+    storage.remove(StorageKeys.PIN_SALT);
     storage.remove(StorageKeys.HAS_PIN);
+    this.resetFailures();
     storage.remove(StorageKeys.BIOMETRICS_ENABLED);
   }
 }

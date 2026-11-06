@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Switch, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
+import { Button, Modal, PasswordField } from '@/components/ui';
+import { getErrorMessage } from '@/shared/utils/apiErrors';
+import { AuthApi } from '../api/auth.api';
+import { CURRENT_USER_KEY, useCurrentUser } from '../hooks/useCurrentUser';
+import { AuthService } from '../services/auth.service';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -17,6 +23,11 @@ export default function SecuritySettingsScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<BiometricAuthType>('none');
   const [biometricEnabled, setBiometricEnabled] = useState(() => BiometricsService.isEnabledInSettings());
+  const queryClient = useQueryClient();
+  const { data: currentUser } = useCurrentUser();
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isCreatingCode, setIsCreatingCode] = useState(false);
   const [autoLockTimeout, setAutoLockTimeout] = useState(() => {
     return storage.get(StorageKeys.AUTO_LOCK_TIMEOUT) || '30s';
   });
@@ -61,6 +72,40 @@ export default function SecuritySettingsScreen() {
       setBiometricEnabled(false);
       toast.info('Biometric unlock disabled');
     }
+  };
+
+  const handleCreateRecoveryCode = async () => {
+    setIsCreatingCode(true);
+    try {
+      const { recoveryCode } = await AuthApi.createRecoveryCode(password);
+      setShowRecoveryModal(false);
+      setPassword('');
+      queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY });
+      router.push({ pathname: '/recovery-code', params: { code: recoveryCode } });
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Couldn't create a recovery code");
+    } finally {
+      setIsCreatingCode(false);
+    }
+  };
+
+  const handleLogoutAll = () => {
+    Alert.alert('Log Out of All Devices', 'You will need to sign in again on every device, including this one.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await AuthService.logoutAllDevices();
+            queryClient.clear();
+            router.replace('/login');
+          } catch (err: unknown) {
+            toast.error(getErrorMessage(err) || "Couldn't log out of all devices");
+          }
+        },
+      },
+    ]);
   };
 
   const handleSelectTimeout = (timeout: string) => {
@@ -188,7 +233,66 @@ export default function SecuritySettingsScreen() {
             );
           })}
         </View>
+
+        {/* Section: Account Recovery */}
+        {currentUser?.hasPassword && (
+          <>
+            <Text style={styles.sectionHeader}>ACCOUNT RECOVERY</Text>
+            <View style={styles.card}>
+              <View style={styles.cardRow}>
+                <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
+                  <MaterialCommunityIcons name="shield-refresh-outline" size={24} color="#D97706" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.cardTitle}>Recovery Code</Text>
+                  <Text style={styles.cardSubtitle}>
+                    {currentUser.hasRecoveryCode
+                      ? 'Saved • Replacing it cancels your old code'
+                      : 'Not set up • Create one so you can reset a forgotten password'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.divider} />
+              <Pressable
+                className="active:opacity-70"
+                style={styles.actionButton}
+                onPress={() => setShowRecoveryModal(true)}
+              >
+                <MaterialCommunityIcons name="key-variant" size={18} color="#2563EB" />
+                <Text style={styles.actionButtonText}>
+                  {currentUser.hasRecoveryCode ? 'Replace Recovery Code' : 'Create Recovery Code'}
+                </Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+              </Pressable>
+            </View>
+          </>
+        )}
+
+        {/* Section: Sessions */}
+        <Text style={styles.sectionHeader}>SESSIONS</Text>
+        <View style={styles.card}>
+          <Pressable
+            className="active:opacity-70"
+            style={styles.actionButton}
+            onPress={handleLogoutAll}
+          >
+            <MaterialCommunityIcons name="logout-variant" size={18} color="#DC2626" />
+            <Text style={[styles.actionButtonText, { color: '#DC2626' }]}>Log Out of All Devices</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </Pressable>
+        </View>
       </ScrollView>
+
+      <Modal
+        visible={showRecoveryModal}
+        onClose={() => setShowRecoveryModal(false)}
+        title="Confirm your password"
+      >
+        <View style={{ gap: 12 }}>
+          <PasswordField label="Password" value={password} onChangeText={setPassword} />
+          <Button title="Continue" onPress={handleCreateRecoveryCode} loading={isCreatingCode} disabled={!password} />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -6,6 +6,8 @@ export interface User {
   authProvider?: string;
   avatarUrl?: string;
   hasPin?: boolean;
+  hasPassword?: boolean;
+  hasRecoveryCode?: boolean;
   createdAt: string;
   updatedAt: string;
 }

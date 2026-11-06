@@ -33,6 +33,22 @@ export interface RefreshTokenResponse {
 
 export interface AuthResponse {
   message: string;
+  recoveryCode?: string;
+}
+
+export interface RecoverRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+}
+
+export interface GoogleRecoverRequest {
+  idToken: string;
+  newPassword: string;
+}
+
+export interface RecoveryCodeResponse {
+  recoveryCode: string;
 }
 
 // The server reads the user's identity from the verified token only.
