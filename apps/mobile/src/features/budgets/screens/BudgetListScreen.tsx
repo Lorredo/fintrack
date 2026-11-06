@@ -10,7 +10,7 @@ import {
 } from '../hooks/useBudgets';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { Budget } from '../types';
-import { formatCurrency, getCategoryColor } from '@/shared/utils/categories';
+import { formatCurrency, getCategoryColor, getLocalISODate } from '@/shared/utils/categories';
 
 
 export default function BudgetListScreen() {
@@ -19,7 +19,7 @@ export default function BudgetListScreen() {
   const setRebalancingBudget = useUIStore((state) => state.setRebalancingBudget);
 
   const [refreshing, setRefreshing] = useState(false);
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = getLocalISODate();
 
   const { data, isLoading, isError, refetch, isRefetching } = useBudgetList();
   const deleteMutation = useDeleteBudget();

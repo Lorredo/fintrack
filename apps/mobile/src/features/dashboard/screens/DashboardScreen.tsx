@@ -7,7 +7,7 @@ import { Screen, Loader, Button, CategoryIcon, ExpandableFAB } from '@/component
 import { useAccounts } from "@/features/accounts/hooks/useAccounts";
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { getGreeting, formatCurrency, formatDate, getCategoryIcon } from '@/shared/utils/categories';
+import { getGreeting, formatCurrency, formatDate, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
 import type { Transaction } from '@/features/transactions/types';
 import type { Budget } from '@/features/budgets/types';
@@ -22,7 +22,7 @@ export default function DashboardScreen() {
   const user = useAuthStore((state) => state.user);
   const [activeWalletId, setActiveWalletId] = useState<string | undefined>(undefined);
   const { data: accounts } = useAccounts();
-  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(undefined, undefined);
+  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(getLocalISODate().slice(0, 7), undefined);
 
   // Sync data to native storage bridge for Home Screen Widgets
   useEffect(() => {
@@ -344,8 +344,9 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Empty State */}
-      {summary.totalIncome === 0 && summary.totalExpense === 0 && (
+      {/* Empty State: the income and expense totals reset monthly, but recent
+          transactions span all time, so only this means a brand-new user. */}
+      {summary.recentTransactions.length === 0 && (
         <View style={{ alignItems: 'center', paddingVertical: 40 }}>
           <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <MaterialCommunityIcons name="wallet-outline" size={36} color="#2563EB" />

@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input, Button } from '@/components/ui';
 import { useAccounts } from "@/features/accounts/hooks/useAccounts";
 import type { Transaction, CreateTransactionInput, UpdateTransactionInput, TransactionType } from '../types';
+import { getLocalISODate } from '@/shared/utils/categories';
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
@@ -64,7 +65,7 @@ export default function TransactionForm({
     transaction?.description || '',
   );
   const [date, setDate] = useState(
-    transaction?.date || new Date().toISOString().split('T')[0],
+    transaction?.date || getLocalISODate(),
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -328,7 +329,7 @@ export default function TransactionForm({
           onChange={(event, selectedDate) => {
             setShowDatePicker(Platform.OS === 'ios');
             if (selectedDate) {
-              setDate(selectedDate.toISOString().split('T')[0]);
+              setDate(getLocalISODate(selectedDate));
             }
           }}
         />

@@ -8,13 +8,13 @@ import { useTrends, useCategoryComparison } from '../hooks/useReports';
 import { ReportsApi } from '../api/reports.api';
 import type { ReportFilters } from '../api/reports.api';
 import type { MonthlyTrend, CategoryComparison } from '../types';
-import { formatCurrency, formatMonth, getCategoryColor, formatDate } from '@/shared/utils/categories';
+import { formatCurrency, formatMonth, getCategoryColor, formatDate, getLocalISODate } from '@/shared/utils/categories';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 
 export default function ReportsScreen() {
   const now = new Date();
-  const defaultStartDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const defaultEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+  const defaultStartDate = getLocalISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+  const defaultEndDate = getLocalISODate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 
   const [filters, setFilters] = useState<ReportFilters>({
     startDate: defaultStartDate,
@@ -55,12 +55,6 @@ export default function ReportsScreen() {
       Alert.alert('Error', `Failed to export ${format.toUpperCase()}`);
     }
   }, [filters]);
-
-  const getLocalISODate = (d: Date) => {
-    const dt = new Date(d);
-    dt.setMinutes(dt.getMinutes() - dt.getTimezoneOffset());
-    return dt.toISOString().split('T')[0];
-  };
 
   const setDateRange = (range: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_year' | 'all_time') => {
     const d = new Date();
@@ -403,7 +397,7 @@ export default function ReportsScreen() {
 
         {showStartDatePicker && (
           <DateTimePicker
-            value={new Date(draftFilters.startDate === '2000-01-01' ? new Date().toISOString().split('T')[0] : draftFilters.startDate)}
+            value={new Date(draftFilters.startDate === '2000-01-01' ? getLocalISODate() : draftFilters.startDate)}
             mode="date"
             display="default"
             onChange={(event, selectedDate) => {

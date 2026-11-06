@@ -93,6 +93,14 @@ export function formatDate(dateStr: string): string {
   });
 }
 
+// YYYY-MM-DD in the device's timezone. toISOString() alone gives the UTC date,
+// which is the previous day for the first 8 hours of a UTC+8 morning.
+export function getLocalISODate(date: Date = new Date()): string {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().split('T')[0];
+}
+
 export function formatMonth(month: string): string {
   const [year, m] = month.split('-');
   const months = [

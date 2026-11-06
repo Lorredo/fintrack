@@ -5,6 +5,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Input, Button } from '@/components/ui';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import type { Budget, CreateBudgetInput, UpdateBudgetInput, PeriodType } from '../types';
+import { getLocalISODate } from '@/shared/utils/categories';
 
 interface BudgetFormProps {
   budget?: Budget | null;
@@ -55,10 +56,10 @@ export default function BudgetForm({
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
   const [startDate, setStartDate] = useState(
-    budget?.startDate || firstDay.toISOString().split('T')[0]
+    budget?.startDate || getLocalISODate(firstDay)
   );
   const [endDate, setEndDate] = useState(
-    budget?.endDate || lastDay.toISOString().split('T')[0]
+    budget?.endDate || getLocalISODate(lastDay)
   );
 
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
@@ -257,7 +258,7 @@ export default function BudgetForm({
           display="default"
           onChange={(event, date) => {
             setShowStartDatePicker(Platform.OS === 'ios');
-            if (date) setStartDate(date.toISOString().split('T')[0]);
+            if (date) setStartDate(getLocalISODate(date));
           }}
         />
       )}
@@ -270,7 +271,7 @@ export default function BudgetForm({
           minimumDate={new Date(startDate)}
           onChange={(event, date) => {
             setShowEndDatePicker(Platform.OS === 'ios');
-            if (date) setEndDate(date.toISOString().split('T')[0]);
+            if (date) setEndDate(getLocalISODate(date));
           }}
         />
       )}

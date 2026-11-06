@@ -8,7 +8,7 @@ import { useTransactionList, useDeleteTransaction, useTransactionCategories } fr
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { Transaction } from '../types';
-import { formatCurrency, formatDate } from '@/shared/utils/categories';
+import { formatCurrency, formatDate, getLocalISODate } from '@/shared/utils/categories';
 
 type FilterTab = 'all' | 'income' | 'expense';
 
@@ -43,11 +43,11 @@ export default function TransactionListScreen() {
   let dateTo: string | undefined;
   
   if (filterDateRange === 'this_month') {
-    dateFrom = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    dateTo = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    dateFrom = getLocalISODate(new Date(now.getFullYear(), now.getMonth(), 1));
+    dateTo = getLocalISODate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
   } else if (filterDateRange === 'last_month') {
-    dateFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-    dateTo = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+    dateFrom = getLocalISODate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    dateTo = getLocalISODate(new Date(now.getFullYear(), now.getMonth(), 0));
   }
 
   const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories();
@@ -127,6 +127,16 @@ export default function TransactionListScreen() {
   ];
 
   const hasActiveFilters = filterAccountId !== '' || filterCategory !== '' || filterDateRange !== 'this_month';
+  // The list opens on this month, so empty only means "no transactions at all"
+  // when nothing is narrowing it down.
+  const showsEverything = filterDateRange === 'all_time' && !filterAccountId && !filterCategory && activeFilter === 'all';
+  const emptyTitle = showsEverything
+    ? 'No transactions yet'
+    : filterDateRange === 'this_month'
+      ? 'No transactions this month'
+      : filterDateRange === 'last_month'
+        ? 'No transactions last month'
+        : 'No transactions found';
 
   return (
     <Screen>
@@ -232,11 +242,13 @@ export default function TransactionListScreen() {
           </View>
         ) : transactions.length === 0 ? (
           <EmptyState
-            title={search ? 'No results found' : 'No transactions yet'}
+            title={search ? 'No results found' : emptyTitle}
             description={
               search
                 ? `No transactions match "${search}"`
-                : 'Start tracking your finances by adding your first transaction.'
+                : showsEverything
+                  ? 'Start tracking your finances by adding your first transaction.'
+                  : 'Try another date range or filter, or add a new transaction.'
             }
           />
         ) : (

@@ -6,13 +6,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen, Input, Button, CategoryIcon } from '@/components/ui';
 import { useUIStore } from '@/shared/store/ui.store';
 import { useBudgetList, useRebalanceBudget } from '@/features/budgets/hooks/useBudgets';
-import { formatCurrency } from '@/shared/utils/categories';
+import { formatCurrency, getLocalISODate } from '@/shared/utils/categories';
 
 export default function RebalanceFormScreen() {
   const router = useRouter();
   const rebalancingBudget = useUIStore((state) => state.rebalancingBudget);
   const setRebalancingBudget = useUIStore((state) => state.setRebalancingBudget);
-  const currentDate = new Date().toISOString().split('T')[0];
+  const currentDate = getLocalISODate();
   const { data } = useBudgetList(currentDate);
   const activeBudgets = data?.data ?? [];
 
