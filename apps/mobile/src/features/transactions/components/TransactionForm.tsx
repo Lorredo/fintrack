@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Input, Button } from '@/components/ui';
 import { useAccounts } from "@/features/accounts/hooks/useAccounts";
+import { useTransactionCategories } from '../hooks/useTransactions';
 import type { Transaction, CreateTransactionInput, UpdateTransactionInput, TransactionType } from '../types';
-import { getLocalISODate } from '@/shared/utils/categories';
+import { findSimilarCategory, formatCurrency, getLocalISODate } from '@/shared/utils/categories';
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
   initialType?: TransactionType;
+  initialAccountId?: string;
   onTypeChange?: (type: TransactionType) => void;
   onSubmit: (data: CreateTransactionInput | UpdateTransactionInput) => void;
   onCancel: () => void;
@@ -25,7 +28,6 @@ const EXPENSE_CATEGORIES = [
   'Housing',
   'Health',
   'Education',
-  'Other',
 ];
 
 const INCOME_CATEGORIES = [
@@ -36,12 +38,23 @@ const INCOME_CATEGORIES = [
   'Side Hustle',
   'Stocks & Dividends',
   'Crypto & Digital',
-  'Other',
 ];
+
+// Selecting this pill opens the name field. It is never saved as a category,
+// but older transactions may still hold it, which is why it isn't a built-in.
+const NEW_CATEGORY = 'Other';
+
+// Past this many saved categories the pills get a search field.
+const CATEGORY_SEARCH_THRESHOLD = 8;
+
+function isSameCategory(a: string, b: string) {
+  return a.toLowerCase() === b.toLowerCase();
+}
 
 export default function TransactionForm({
   transaction,
   initialType = 'expense',
+  initialAccountId,
   onTypeChange,
   onSubmit,
   onCancel,
@@ -49,7 +62,7 @@ export default function TransactionForm({
 }: TransactionFormProps) {
   const { data: accounts, isLoading: accountsLoading } = useAccounts();
   
-  const [accountId, setAccountId] = useState(transaction?.accountId || '');
+  const [accountId, setAccountId] = useState(transaction?.accountId || initialAccountId || '');
   const [transferAccountId, setTransferAccountId] = useState(transaction?.transferAccountId || '');
   const [type, setType] = useState<TransactionType>(
     transaction?.type || initialType,
@@ -57,10 +70,10 @@ export default function TransactionForm({
   const [amount, setAmount] = useState(
     transaction ? String(transaction.amount) : '',
   );
-  const initialValidCats = (transaction?.type || initialType) === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-  const isCustomInitial = !!transaction?.category && !initialValidCats.includes(transaction.category) && transaction.type !== 'transfer';
-  const [selectedPill, setSelectedPill] = useState(isCustomInitial ? 'Other' : (transaction?.category || ''));
-  const [customCategory, setCustomCategory] = useState(isCustomInitial ? transaction.category : '');
+  const [selectedPill, setSelectedPill] = useState(transaction?.category || '');
+  const [customCategory, setCustomCategory] = useState('');
+  const [transferFee, setTransferFee] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
   const [description, setDescription] = useState(
     transaction?.description || '',
   );
@@ -70,14 +83,60 @@ export default function TransactionForm({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const { data: userCategories } = useTransactionCategories(type);
+
+  const builtInCategories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  // The transaction being edited keeps its pill even before the list loads.
+  const savedCategories = [
+    ...new Set([
+      ...(userCategories ?? []),
+      ...(transaction?.type === type ? [transaction.category] : []),
+    ]),
+  ].filter(
+    (category) =>
+      !isSameCategory(category, NEW_CATEGORY) &&
+      !builtInCategories.some((builtIn) => isSameCategory(builtIn, category)),
+  );
+  const categories = [...builtInCategories, ...savedCategories];
+  const showCategorySearch = savedCategories.length > CATEGORY_SEARCH_THRESHOLD;
+  const searchTerm = showCategorySearch ? categorySearch.trim().toLowerCase() : '';
+  const visibleCategories = categories.filter(
+    (category) => !searchTerm || category === selectedPill || category.toLowerCase().includes(searchTerm),
+  );
+
+  const fromWallet = accounts?.find((acc) => acc.id === accountId);
+  const toWallet = accounts?.find((acc) => acc.id === transferAccountId);
+  const transferAmount = Number(amount) > 0 ? Number(amount) : 0;
+  const totalLeaving = transferAmount + (Number(transferFee) > 0 ? Number(transferFee) : 0);
+  const showTransferSummary = type === 'transfer' && !transaction && transferAmount > 0;
+
+  const handleSwapWallets = () => {
+    setAccountId(transferAccountId);
+    setTransferAccountId(accountId);
+  };
+  const similarCategory = selectedPill === NEW_CATEGORY
+    ? findSimilarCategory(customCategory, categories)
+    : undefined;
+
+  // A new name that only differs by capitalization reuses the existing spelling.
+  const getFinalCategory = () => {
+    if (selectedPill !== NEW_CATEGORY) return selectedPill;
+    const name = customCategory.trim();
+    return categories.find((category) => isSameCategory(category, name)) ?? name;
+  };
+
+  const handleSelectSimilar = (category: string) => {
+    setSelectedPill(category);
+    setCustomCategory('');
+  };
 
   // Auto-select first account if none selected
   useEffect(() => {
     if (accounts && accounts.length > 0) {
       if (!accountId) setAccountId(accounts[0].id);
       if (type === 'transfer' && !transferAccountId && accounts.length > 1) {
-        setTransferAccountId(accounts[1].id);
+        const destination = accounts.find((acc) => acc.id !== (accountId || accounts[0].id));
+        if (destination) setTransferAccountId(destination.id);
       }
     }
   }, [accounts, accountId, type, transferAccountId]);
@@ -89,7 +148,7 @@ export default function TransactionForm({
       setSelectedPill('Transfer');
     } else {
       const validCategories = newType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
-      if (selectedPill && !validCategories.includes(selectedPill) && selectedPill !== 'Other') {
+      if (selectedPill && !validCategories.includes(selectedPill) && selectedPill !== NEW_CATEGORY) {
         setSelectedPill('');
       }
     }
@@ -111,9 +170,14 @@ export default function TransactionForm({
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       newErrors.amount = 'Amount must be greater than zero';
     }
-    const finalCategory = selectedPill === 'Other' ? customCategory.trim() : selectedPill;
+    if (transferFee && (isNaN(Number(transferFee)) || Number(transferFee) < 0)) {
+      newErrors.transferFee = 'Fee must be a valid amount';
+    }
+    const finalCategory = getFinalCategory();
     if (type !== 'transfer' && !finalCategory) {
       newErrors.category = 'Category is required';
+    } else if (type !== 'transfer' && isSameCategory(finalCategory, NEW_CATEGORY)) {
+      newErrors.category = 'Enter a specific category name';
     }
     if (!date) {
       newErrors.date = 'Date is required';
@@ -126,13 +190,12 @@ export default function TransactionForm({
   const handleSubmit = () => {
     if (!validate()) return;
 
-    const finalCategory = selectedPill === 'Other' ? customCategory.trim() : selectedPill;
     const payload = {
       accountId,
       transferAccountId: type === 'transfer' ? transferAccountId : undefined,
       type,
       amount: parseFloat(amount),
-      category: type === 'transfer' ? 'Transfer' : finalCategory,
+      category: type === 'transfer' ? 'Transfer' : getFinalCategory(),
       description: description || undefined,
       date,
     };
@@ -140,7 +203,11 @@ export default function TransactionForm({
     if (transaction) {
       onSubmit({ ...payload, id: transaction.id } as UpdateTransactionInput);
     } else {
-      onSubmit(payload as CreateTransactionInput);
+      const fee = parseFloat(transferFee);
+      onSubmit({
+        ...payload,
+        fee: type === 'transfer' && fee > 0 ? fee : undefined,
+      } as CreateTransactionInput);
     }
   };
 
@@ -210,6 +277,9 @@ export default function TransactionForm({
                 >
                   {acc.name}
                 </Text>
+                <Text className={`text-xs ${accountId === acc.id ? 'text-white' : 'text-text-secondary'}`}>
+                  {formatCurrency(acc.balance)}
+                </Text>
               </Pressable>
             ))}
           </ScrollView>
@@ -222,7 +292,20 @@ export default function TransactionForm({
       {/* Wallet Selector (To) */}
       {type === 'transfer' && (
         <View>
-          <Text className="text-sm font-medium text-text mb-xs">To Wallet</Text>
+          <View className="flex-row items-center justify-between mb-xs">
+            <Text className="text-sm font-medium text-text">To Wallet</Text>
+            <Pressable
+              onPress={handleSwapWallets}
+              disabled={!accountId || !transferAccountId}
+              accessibilityRole="button"
+              accessibilityLabel="Swap wallets"
+              hitSlop={8}
+              className="flex-row items-center gap-xs"
+            >
+              <MaterialCommunityIcons name="swap-vertical" size={18} color="#2563EB" />
+              <Text className="text-xs font-semibold text-primary">Swap</Text>
+            </Pressable>
+          </View>
           {accountsLoading ? (
             <ActivityIndicator size="small" color="#2563EB" style={{ alignSelf: 'flex-start' }} />
           ) : (
@@ -244,6 +327,9 @@ export default function TransactionForm({
                   >
                     {acc.name}
                   </Text>
+                  <Text className={`text-xs ${transferAccountId === acc.id ? 'text-white' : 'text-text-secondary'}`}>
+                    {formatCurrency(acc.balance)}
+                  </Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -264,12 +350,54 @@ export default function TransactionForm({
         error={errors.amount}
       />
 
+      {/* Transfer Fee */}
+      {type === 'transfer' && !transaction && (
+        <View>
+          <Input
+            label="Transfer Fee (optional)"
+            placeholder="0.00"
+            keyboardType="decimal-pad"
+            value={transferFee}
+            onChangeText={setTransferFee}
+            error={errors.transferFee}
+          />
+          {Number(transferFee) > 0 && (
+            <Text className="text-xs text-text-secondary">The fee is saved as an expense.</Text>
+          )}
+        </View>
+      )}
+
+      {/* Transfer Summary */}
+      {showTransferSummary && fromWallet && toWallet && (
+        <View className="bg-surface rounded-xl border border-border p-md gap-xs">
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-text-secondary">{fromWallet.name}</Text>
+            <Text className="text-sm font-semibold text-text">
+              {formatCurrency(fromWallet.balance)} → {formatCurrency(fromWallet.balance - totalLeaving)}
+            </Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-sm text-text-secondary">{toWallet.name}</Text>
+            <Text className="text-sm font-semibold text-text">
+              {formatCurrency(toWallet.balance)} → {formatCurrency(toWallet.balance + transferAmount)}
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Category */}
       {type !== 'transfer' && (
         <View>
           <Text className="text-sm font-medium text-text mb-xs">Category</Text>
+          {showCategorySearch && (
+            <Input
+              placeholder="Search categories"
+              value={categorySearch}
+              onChangeText={setCategorySearch}
+            />
+          )}
           <View className="flex-row flex-wrap gap-xs">
-            {categories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <Pressable
                 key={cat}
                 onPress={() => setSelectedPill(cat)}
@@ -288,15 +416,36 @@ export default function TransactionForm({
                 </Text>
               </Pressable>
             ))}
+            <Pressable
+              onPress={() => setSelectedPill(NEW_CATEGORY)}
+              className={`px-sm py-xs rounded-full border ${
+                selectedPill === NEW_CATEGORY
+                  ? 'bg-primary border-primary'
+                  : 'bg-surface border-border'
+              }`}
+            >
+              <Text
+                className={`text-xs ${
+                  selectedPill === NEW_CATEGORY ? 'text-white' : 'text-text-secondary'
+                }`}
+              >
+                + New category
+              </Text>
+            </Pressable>
           </View>
-          {selectedPill === 'Other' && (
+          {selectedPill === NEW_CATEGORY && (
             <View className="mt-md">
               <Input
-                label="Custom Category"
+                label="Category Name"
                 placeholder="e.g. Gym, Subscription"
                 value={customCategory}
                 onChangeText={setCustomCategory}
               />
+              {similarCategory && (
+                <Pressable onPress={() => handleSelectSimilar(similarCategory)} className="mt-xs">
+                  <Text className="text-xs text-primary">Did you mean {similarCategory}?</Text>
+                </Pressable>
+              )}
             </View>
           )}
           {errors.category && (

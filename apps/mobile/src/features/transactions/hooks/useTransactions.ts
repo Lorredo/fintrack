@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { TransactionApi } from '../api/transactions.api';
 import type {
@@ -19,12 +19,13 @@ const RELATED_QUERY_KEYS = [
   ['budgets'],
   ['dashboard'],
   ['accounts'],
+  ['reports'],
 ] as const;
 
-export function useTransactionCategories() {
+export function useTransactionCategories(type?: string) {
   return useQuery({
-    queryKey: [...TRANSACTION_KEYS.all, 'categories'],
-    queryFn: () => TransactionApi.getCategories(),
+    queryKey: [...TRANSACTION_KEYS.all, 'categories', type],
+    queryFn: () => TransactionApi.getCategories(type),
   });
 }
 
@@ -32,6 +33,16 @@ export function useTransactionList(params?: TransactionListParams) {
   return useQuery({
     queryKey: TRANSACTION_KEYS.list(params),
     queryFn: () => TransactionApi.list(params),
+  });
+}
+
+export function useInfiniteTransactionList(params?: Omit<TransactionListParams, 'page'>) {
+  return useInfiniteQuery({
+    queryKey: [...TRANSACTION_KEYS.all, 'infinite', params],
+    queryFn: ({ pageParam }) => TransactionApi.list({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
   });
 }
 

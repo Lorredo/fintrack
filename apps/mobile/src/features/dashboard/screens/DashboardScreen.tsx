@@ -5,9 +5,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Screen, Loader, Button, CategoryIcon, ExpandableFAB } from '@/components/ui';
 import { useAccounts } from "@/features/accounts/hooks/useAccounts";
+import TransactionDetailsModal from '@/features/transactions/components/TransactionDetailsModal';
+import TransactionRow from '@/features/transactions/components/TransactionRow';
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useAuthStore } from '@/features/auth/store/auth.store';
-import { getGreeting, formatCurrency, formatDate, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
+import { getGreeting, formatCurrency, formatMonth, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
 import type { Transaction } from '@/features/transactions/types';
 import type { Budget } from '@/features/budgets/types';
@@ -21,8 +23,10 @@ export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [activeWalletId, setActiveWalletId] = useState<string | undefined>(undefined);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const { data: accounts } = useAccounts();
-  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(getLocalISODate().slice(0, 7), undefined);
+  const month = getLocalISODate().slice(0, 7);
+  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(month, undefined);
 
   // Sync data to native storage bridge for Home Screen Widgets
   useEffect(() => {
@@ -268,6 +272,7 @@ export default function DashboardScreen() {
       )}
 
       {/* Metrics Row */}
+      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 }}>{formatMonth(month)}</Text>
       <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
         {/* Income */}
         <View style={{ flex: 1, backgroundColor: '#F0FDF4', borderRadius: 16, padding: 14 }}>
@@ -338,7 +343,12 @@ export default function DashboardScreen() {
           </View>
           <View style={{ gap: 8 }}>
             {summary.recentTransactions.map((transaction: Transaction) => (
-              <TransactionRow key={transaction.id} transaction={transaction} accounts={accounts} />
+              <TransactionRow
+                key={transaction.id}
+                transaction={transaction}
+                accounts={accounts}
+                onPress={setSelectedTransaction}
+              />
             ))}
           </View>
         </View>
@@ -357,6 +367,12 @@ export default function DashboardScreen() {
           </Text>
         </View>
       )}
+
+      <TransactionDetailsModal
+        transaction={selectedTransaction}
+        accounts={accounts}
+        onClose={() => setSelectedTransaction(null)}
+      />
     </Screen>
   );
 }
@@ -437,57 +453,6 @@ function MonthlySpendingChart({ data }: { data: { category: string; total: numbe
           </View>
         );
       })}
-    </View>
-  );
-}
-
-
-
-function TransactionRow({ transaction, accounts }: { transaction: Transaction; accounts?: Account[] }) {
-  const isExpense = transaction.type === 'expense';
-  const isTransfer = transaction.type === 'transfer';
-
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 14,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 1,
-      }}
-    >
-      <CategoryIcon category={transaction.category} size="sm" />
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
-            {transaction.category}
-          </Text>
-          {accounts && (
-            <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-              <Text style={{ fontSize: 9, fontWeight: '600', color: '#6B7280' }}>
-                {transaction.type === 'transfer' ? `${accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet'} → ${accounts.find(a => a.id === transaction.transferAccountId)?.name || 'Wallet'}` : (accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet')}
-              </Text>
-            </View>
-          )}
-        </View>
-        {transaction.description && (
-          <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
-            {transaction.description}
-          </Text>
-        )}
-        <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
-          {formatDate(transaction.date)}
-        </Text>
-      </View>
-      <Text style={{ fontSize: 15, fontWeight: '700', color: isTransfer ? '#6B7280' : isExpense ? '#EF4444' : '#22C55E' }}>
-        {isTransfer ? '⇄ ' : isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
-      </Text>
     </View>
   );
 }

@@ -7,6 +7,7 @@ export interface Account {
   type: AccountType;
   color?: string;
   balance: number;
+  lastAdjustedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,6 +23,17 @@ export interface UpdateAccountInput {
   name?: string;
   type?: AccountType;
   color?: string;
+}
+
+export interface SetBalanceInput {
+  id: string;
+  balance: number;
+  date: string;
+}
+
+export interface SetBalanceResult {
+  balance: number;
+  adjusted: boolean;
 }
 
 export interface AccountResponse {

@@ -65,10 +65,8 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
           {row.map((digit) => (
             <Pressable
               key={digit}
-              style={({ pressed }) => [
-                styles.keyButton,
-                pressed && styles.keyButtonPressed,
-              ]}
+              className="active:opacity-60"
+              style={styles.keyButton}
               onPress={() => handleDigit(digit)}
               disabled={disabled}
             >
@@ -82,11 +80,8 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
       <View style={styles.row}>
         {showBiometrics && onBiometricPress ? (
           <Pressable
-            style={({ pressed }) => [
-              styles.keyButton,
-              styles.auxButton,
-              pressed && styles.keyButtonPressed,
-            ]}
+            className="active:opacity-60"
+            style={[styles.keyButton, styles.auxButton]}
             onPress={handleBiometric}
             disabled={disabled}
           >
@@ -97,10 +92,8 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
         )}
 
         <Pressable
-          style={({ pressed }) => [
-            styles.keyButton,
-            pressed && styles.keyButtonPressed,
-          ]}
+          className="active:opacity-60"
+          style={styles.keyButton}
           onPress={() => handleDigit('0')}
           disabled={disabled}
         >
@@ -108,11 +101,8 @@ export const PinKeypad: React.FC<PinKeypadProps> = ({
         </Pressable>
 
         <Pressable
-          style={({ pressed }) => [
-            styles.keyButton,
-            styles.auxButton,
-            pressed && styles.keyButtonPressed,
-          ]}
+          className="active:opacity-60"
+          style={[styles.keyButton, styles.auxButton]}
           onPress={handleDelete}
           disabled={disabled}
         >
@@ -150,11 +140,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 5,
     elevation: 2,
-  },
-  keyButtonPressed: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
-    transform: [{ scale: 0.94 }],
   },
   digitText: {
     fontSize: 26,

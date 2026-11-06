@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,10 +10,15 @@ import type { CreateTransactionInput, UpdateTransactionInput } from '@/features/
 
 export default function TransactionFormScreen() {
   const router = useRouter();
-  const { type } = useLocalSearchParams<{ type?: 'expense' | 'income' | 'transfer' }>();
+  const { type, accountId } = useLocalSearchParams<{ type?: 'expense' | 'income' | 'transfer'; accountId?: string }>();
   
-  const editingTransaction = useUIStore((state) => state.editingTransaction);
+  // Read once: this screen edits whatever was selected when it opened.
+  const [editingTransaction] = useState(() => useUIStore.getState().editingTransaction);
   const setEditingTransaction = useUIStore((state) => state.setEditingTransaction);
+
+  // Every exit lands here, including the phone's back button and gesture, so
+  // the selection can't leak into the next form.
+  useEffect(() => () => setEditingTransaction(null), [setEditingTransaction]);
   
   const createMutation = useCreateTransaction();
   const updateMutation = useUpdateTransaction();
@@ -21,9 +26,8 @@ export default function TransactionFormScreen() {
   const [formType, setFormType] = useState(editingTransaction?.type || type || 'expense');
 
   const handleClose = useCallback(() => {
-    setEditingTransaction(null);
     router.back();
-  }, [router, setEditingTransaction]);
+  }, [router]);
 
   const handleSubmit = useCallback(
     (data: CreateTransactionInput | UpdateTransactionInput) => {
@@ -60,6 +64,7 @@ export default function TransactionFormScreen() {
       <TransactionForm
         transaction={editingTransaction}
         initialType={type || 'expense'}
+        initialAccountId={accountId}
         onTypeChange={setFormType}
         onSubmit={handleSubmit}
         onCancel={handleClose}

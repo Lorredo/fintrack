@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { View, ViewProps, ScrollView, RefreshControl, Platform, KeyboardAvoidingView } from 'react-native';
+import { useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface ScreenProps extends ViewProps {
@@ -21,6 +22,10 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const paddingTop = Platform.OS === 'android' ? Math.max(insets.top, 16) : insets.top;
+  // The tab bar already sits above the system buttons, so only screens outside
+  // the tabs need to keep clear of them.
+  const [routeGroup] = useSegments();
+  const paddingBottom = routeGroup === '(app)' ? 0 : insets.bottom;
 
   if (scrollable) {
     return (
@@ -30,7 +35,7 @@ export function Screen({
       >
         <ScrollView
           className={`flex-1 px-5 ${className}`}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: (floatingComponent ? 100 : 40) + paddingBottom }}
           refreshControl={
             onRefresh ? (
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />
@@ -48,7 +53,7 @@ export function Screen({
 
   return (
     <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}
+      style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop, paddingBottom }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View className={`flex-1 px-5 ${className}`} {...props}>

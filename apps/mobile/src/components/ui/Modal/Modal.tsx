@@ -4,7 +4,10 @@ import {
   Pressable,
   Modal as RNModal,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ModalProps } from './Modal.types';
 
@@ -15,11 +18,16 @@ export default function Modal({
   children,
   style,
 }: ModalProps) {
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+
   return (
     <RNModal
       visible={visible}
       transparent
       animationType="slide"
+      statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable
@@ -35,7 +43,8 @@ export default function Modal({
               shadowOpacity: 0.12,
               shadowRadius: 20,
               elevation: 16,
-              paddingBottom: 36,
+              paddingBottom: insets.bottom + 24,
+              maxHeight: height - insets.top - 16,
             },
             style,
           ]}

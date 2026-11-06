@@ -31,6 +31,7 @@ export const AuthProgressOverlay: React.FC<AuthProgressOverlayProps> = ({
       transparent
       animationType="fade"
       statusBarTranslucent
+      navigationBarTranslucent
       // Back can't cancel an in-flight sign-in.
       onRequestClose={() => {}}
     >

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AccountApi } from '../api/accounts.api';
-import type { CreateAccountInput, UpdateAccountInput } from '../types';
+import type { CreateAccountInput, SetBalanceInput, UpdateAccountInput } from '../types';
 
 export const ACCOUNT_KEYS = {
   all: ['accounts'] as const,
@@ -20,6 +20,20 @@ export function useCreateAccount() {
     mutationFn: (input: CreateAccountInput) => AccountApi.create(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACCOUNT_KEYS.all });
+    },
+  });
+}
+
+export function useSetAccountBalance() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: SetBalanceInput) => AccountApi.setBalance(input),
+    onSuccess: () => {
+      // An adjustment is a transaction, so everything built on them is stale.
+      [ACCOUNT_KEYS.all, ['transactions'], ['dashboard'], ['budgets'], ['reports']].forEach((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      );
     },
   });
 }

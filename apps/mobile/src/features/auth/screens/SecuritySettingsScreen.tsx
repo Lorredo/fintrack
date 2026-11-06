@@ -111,7 +111,8 @@ export default function SecuritySettingsScreen() {
 
           {hasPin ? (
             <Pressable
-              style={({ pressed }) => [styles.actionButton, pressed && { opacity: 0.7 }]}
+              className="active:opacity-70"
+              style={styles.actionButton}
               onPress={() => router.push({ pathname: '/pin-setup', params: { mode: 'change' } })}
             >
               <MaterialCommunityIcons name="lock-reset" size={18} color="#2563EB" />
@@ -120,7 +121,8 @@ export default function SecuritySettingsScreen() {
             </Pressable>
           ) : (
             <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.8 }]}
+              className="active:opacity-80"
+              style={styles.primaryButton}
               onPress={() => router.push('/pin-setup')}
             >
               <Text style={styles.primaryButtonText}>Set Up 4-Digit PIN</Text>

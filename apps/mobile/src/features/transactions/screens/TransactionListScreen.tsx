@@ -1,21 +1,22 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import { View, Text, FlatList, Alert, TextInput, Pressable, RefreshControl, ScrollView } from 'react-native';
+import { View, Text, SectionList, TextInput, Pressable, RefreshControl, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen, Loader, EmptyState, Button, CategoryIcon, ExpandableFAB, Modal } from '@/components/ui';
-import { useTransactionList, useDeleteTransaction, useTransactionCategories } from '../hooks/useTransactions';
+import { useTransactionList, useTransactionCategories } from '../hooks/useTransactions';
+import TransactionDetailsModal from '../components/TransactionDetailsModal';
+import TransactionRow from '../components/TransactionRow';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
-import { useUIStore } from '@/shared/store/ui.store';
 import type { Transaction } from '../types';
-import { formatCurrency, formatDate, getLocalISODate } from '@/shared/utils/categories';
+import { groupByDate } from '../utils/groupByDate';
+import { getLocalISODate } from '@/shared/utils/categories';
 
 type FilterTab = 'all' | 'income' | 'expense';
 
 export default function TransactionListScreen() {
   const router = useRouter();
-  const setEditingTransaction = useUIStore((state) => state.setEditingTransaction);
-  const deleteMutation = useDeleteTransaction();
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -50,7 +51,7 @@ export default function TransactionListScreen() {
     dateTo = getLocalISODate(new Date(now.getFullYear(), now.getMonth(), 0));
   }
 
-  const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories();
+  const { data: userCategories, isLoading: categoriesLoading, isError: categoriesError } = useTransactionCategories(activeFilter === 'all' ? undefined : activeFilter);
   const { data: accounts } = useAccounts();
   const { data, isLoading, isFetching, isError, refetch, isRefetching } = useTransactionList({
     page,
@@ -87,6 +88,7 @@ export default function TransactionListScreen() {
   }, [data?.data, page]);
 
   const transactions = page === 1 ? (data?.data ?? accumulatedTransactions) : accumulatedTransactions;
+  const sections = useMemo(() => groupByDate(transactions), [transactions]);
   const totalPages = data?.totalPages || 1;
 
   // Initial loading is true only when we do not yet have data for the active filter/page
@@ -98,26 +100,8 @@ export default function TransactionListScreen() {
     refetch().finally(() => setRefreshing(false));
   }, [refetch]);
 
-  const handleEdit = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-    router.push('/transaction-form');
-  };
-
-  const handleDelete = (id: string) => {
-    Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteMutation.mutate(id, {
-            onSuccess: () => {
-              setAccumulatedTransactions((prev) => prev.filter((t) => t.id !== id));
-            },
-          });
-        },
-      },
-    ]);
+  const handleDeleted = (id: string) => {
+    setAccumulatedTransactions((prev) => prev.filter((t) => t.id !== id));
   };
 
   const filterTabs: { label: string; key: FilterTab }[] = [
@@ -211,6 +195,8 @@ export default function TransactionListScreen() {
                 }}
                 onPress={() => {
                   setActiveFilter(tab.key);
+                  // Income and expense have separate categories.
+                  setFilterCategory('');
                   setPage(1);
                 }}
               >
@@ -252,18 +238,26 @@ export default function TransactionListScreen() {
             }
           />
         ) : (
-          <FlatList
-            data={transactions}
+          <SectionList
+            sections={sections}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TransactionRow
-                transaction={item}
-                accounts={accounts}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
+            stickySectionHeadersEnabled={false}
+            renderSectionHeader={({ section }) => (
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#4B5563', marginTop: 14, marginBottom: 8 }}>
+                {section.title}
+              </Text>
             )}
-            contentContainerStyle={{ gap: 8, paddingBottom: 100 }}
+            renderItem={({ item }) => (
+              <View style={{ marginBottom: 10 }}>
+                <TransactionRow
+                  transaction={item}
+                  accounts={accounts}
+                  showDate={false}
+                  onPress={setSelectedTransaction}
+                />
+              </View>
+            )}
+            contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing || isRefetching} onRefresh={handleRefresh} tintColor="#2563EB" />
@@ -290,7 +284,6 @@ export default function TransactionListScreen() {
               label: 'Add Expense',
               color: '#EF4444',
               onPress: () => {
-                setEditingTransaction(null);
                 router.push({ pathname: '/transaction-form', params: { type: 'expense' } });
               }
             },
@@ -299,7 +292,6 @@ export default function TransactionListScreen() {
               label: 'Add Income',
               color: '#22C55E',
               onPress: () => {
-                setEditingTransaction(null);
                 router.push({ pathname: '/transaction-form', params: { type: 'income' } });
               }
             }
@@ -308,7 +300,6 @@ export default function TransactionListScreen() {
       ) : (
         <Pressable
           onPress={() => {
-            setEditingTransaction(null);
             router.push({ pathname: '/transaction-form', params: { type: activeFilter } });
           }}
           style={{
@@ -437,80 +428,12 @@ export default function TransactionListScreen() {
         </View>
       </Modal>
 
+      <TransactionDetailsModal
+        transaction={selectedTransaction}
+        accounts={accounts}
+        onClose={() => setSelectedTransaction(null)}
+        onDeleted={handleDeleted}
+      />
     </Screen>
-  );
-}
-
-function TransactionRow({
-  transaction,
-  accounts,
-  onEdit,
-  onDelete,
-}: {
-  transaction: Transaction;
-  accounts?: any[];
-  onEdit: (transaction: Transaction) => void;
-  onDelete: (id: string) => void;
-}) {
-  const isExpense = transaction.type === 'expense';
-
-  return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 14,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 1,
-      }}
-    >
-      <CategoryIcon category={transaction.category} size="sm" />
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }} numberOfLines={1}>
-            {transaction.category}
-          </Text>
-          {accounts && (
-            <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-              <Text style={{ fontSize: 9, fontWeight: '600', color: '#6B7280' }}>
-                {transaction.type === 'transfer' ? `${accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet'} → ${accounts.find(a => a.id === transaction.transferAccountId)?.name || 'Wallet'}` : (accounts.find(a => a.id === transaction.accountId)?.name || 'Wallet')}
-              </Text>
-            </View>
-          )}
-        </View>
-        {transaction.description && (
-          <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 1 }} numberOfLines={1}>
-            {transaction.description}
-          </Text>
-        )}
-        <Text style={{ fontSize: 11, color: '#9CA3AF', marginTop: 1 }}>
-          {formatDate(transaction.date)}
-        </Text>
-      </View>
-      <View style={{ alignItems: 'flex-end' }}>
-        <Text style={{ fontSize: 15, fontWeight: '700', color: isExpense ? '#EF4444' : '#22C55E' }}>
-          {isExpense ? '-' : '+'}{formatCurrency(transaction.amount)}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 4, marginTop: 4 }}>
-          <Pressable
-            onPress={() => onEdit(transaction)}
-            style={{ padding: 4, borderRadius: 6, backgroundColor: '#EFF6FF' }}
-          >
-            <MaterialCommunityIcons name="pencil" size={14} color="#2563EB" />
-          </Pressable>
-          <Pressable
-            onPress={() => onDelete(transaction.id)}
-            style={{ padding: 4, borderRadius: 6, backgroundColor: '#FEF2F2' }}
-          >
-            <MaterialCommunityIcons name="trash-can-outline" size={14} color="#EF4444" />
-          </Pressable>
-        </View>
-      </View>
-    </View>
   );
 }

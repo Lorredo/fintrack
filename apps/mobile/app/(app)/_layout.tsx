@@ -18,8 +18,8 @@ export default function AppLayout() {
             tabBarStyle: {
               backgroundColor: "#FFFFFF",
               borderTopWidth: 0,
-              height: 60 + insets.bottom,
-              paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 14,
+              height: 68 + insets.bottom,
+              paddingBottom: insets.bottom + 10,
               paddingTop: 10,
               shadowColor: '#000',
               shadowOffset: { width: 0, height: -2 },

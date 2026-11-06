@@ -1,4 +1,4 @@
-export type TransactionType = 'income' | 'expense' | 'transfer';
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjust_in' | 'adjust_out';
 
 export interface Transaction {
   id: string;
@@ -19,6 +19,7 @@ export interface CreateTransactionInput {
   transferAccountId?: string;
   type: TransactionType;
   amount: number;
+  fee?: number;
   category: string;
   description?: string;
   date: string;

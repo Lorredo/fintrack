@@ -79,9 +79,31 @@ export function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] || '#64748B';
 }
 
+// Lowercased letters and digits with repeats collapsed, so Support, support
+// and Supporrrttt all compare equal.
+export function normalizeCategory(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, '').replace(/(.)\1+/g, '$1');
+}
+
+export function findSimilarCategory(name: string, existing: string[]): string | undefined {
+  const normalized = normalizeCategory(name);
+  if (!normalized) return undefined;
+
+  const exact = existing.find((category) => normalizeCategory(category) === normalized);
+  if (exact) return exact;
+
+  return existing.find((category) => {
+    const other = normalizeCategory(category);
+    const [shorter, longer] = normalized.length < other.length ? [normalized, other] : [other, normalized];
+    return shorter.length >= 3 && longer.startsWith(shorter);
+  });
+}
+
 export function formatCurrency(amount: number | undefined | null, currency = '₱'): string {
   const value = typeof amount === 'number' && isFinite(amount) ? amount : 0;
-  return `${currency}${value.toFixed(2)}`;
+  const formatted = Math.abs(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const sign = value < 0 && formatted !== '0.00' ? '-' : '';
+  return `${sign}${currency}${formatted}`;
 }
 
 export function formatDate(dateStr: string): string {
@@ -99,6 +121,12 @@ export function getLocalISODate(date: Date = new Date()): string {
   const local = new Date(date);
   local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
   return local.toISOString().split('T')[0];
+}
+
+export function formatDateRange(startDate: string, endDate: string): string {
+  if (startDate === endDate) return formatDate(startDate);
+  if (startDate === '2000-01-01') return 'All Time';
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
 }
 
 export function formatMonth(month: string): string {

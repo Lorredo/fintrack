@@ -1,17 +1,21 @@
 import { useCallback, useState, useMemo } from 'react';
-import { View, Text, ScrollView, RefreshControl, Alert, Share, Platform, Pressable } from 'react-native';
+import { View, Text, ScrollView, RefreshControl, Platform, Pressable, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { Screen, Loader, Button, ProgressBar, Modal } from '@/components/ui';
 import { useTrends, useCategoryComparison } from '../hooks/useReports';
-import { ReportsApi } from '../api/reports.api';
+import { ReportExportService, type ExportFormat, type PreparedReport } from '../services/report-export.service';
 import type { ReportFilters } from '../api/reports.api';
 import type { MonthlyTrend, CategoryComparison } from '../types';
-import { formatCurrency, formatMonth, getCategoryColor, formatDate, getLocalISODate } from '@/shared/utils/categories';
+import { formatCurrency, formatMonth, getCategoryColor, formatDateRange, getLocalISODate } from '@/shared/utils/categories';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
+import { useToast } from '@/features/toast/hooks/useToast';
 
 export default function ReportsScreen() {
+  const router = useRouter();
+  const toast = useToast();
   const now = new Date();
   const defaultStartDate = getLocalISODate(new Date(now.getFullYear(), now.getMonth(), 1));
   const defaultEndDate = getLocalISODate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
@@ -25,6 +29,8 @@ export default function ReportsScreen() {
   const [draftFilters, setDraftFilters] = useState<ReportFilters>(filters);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [preparedReport, setPreparedReport] = useState<PreparedReport | null>(null);
 
   const { data: accounts } = useAccounts();
   const { data: trends, isLoading: trendsLoading, isError: trendsError, refetch: refetchTrends, isRefetching: trendsRefetching } = useTrends(filters);
@@ -36,25 +42,51 @@ export default function ReportsScreen() {
     refetchCategories();
   }, [refetchTrends, refetchCategories]);
 
-  const handleExport = useCallback(async (format: 'pdf' | 'excel') => {
+  const handleExport = async (format: ExportFormat) => {
+    if (exporting) return;
+    setExporting(format);
     try {
-      const response = await ReportsApi.exportCSV(filters);
-      const csvData = typeof response === 'string' ? response : (response as any).data;
-      if (Platform.OS === 'web') {
-        const blob = new Blob([csvData], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `reports_${filters.startDate}_to_${filters.endDate}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        await Share.share({ message: csvData, title: `Reports ${filters.startDate} to ${filters.endDate}` });
+      const walletName = accounts?.find((account) => account.id === filters.accountId)?.name;
+      const result = await ReportExportService.prepare(filters, format, walletName);
+      if (result === 'empty') {
+        toast.info('No transactions to export for this period');
+      } else if (result !== 'opened') {
+        // iOS share sheet already offers Save to Files.
+        if (Platform.OS === 'android') {
+          setPreparedReport(result);
+        } else {
+          await ReportExportService.share(result);
+        }
       }
     } catch {
-      Alert.alert('Error', `Failed to export ${format.toUpperCase()}`);
+      toast.error(`Couldn't create the ${format === 'pdf' ? 'PDF' : 'Excel file'}. Please try again.`);
+    } finally {
+      setExporting(null);
     }
-  }, [filters]);
+  };
+
+  const handleSaveReport = async (report: PreparedReport) => {
+    setPreparedReport(null);
+    try {
+      await ReportExportService.saveToDevice(report);
+      toast.success('Report saved');
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.includes('cancelled')) {
+        setPreparedReport(report);
+      } else {
+        toast.error("Couldn't save the report. Please try again.");
+      }
+    }
+  };
+
+  const handleShareReport = async (report: PreparedReport) => {
+    setPreparedReport(null);
+    try {
+      await ReportExportService.share(report);
+    } catch {
+      toast.error("Couldn't share the report. Please try again.");
+    }
+  };
 
   const setDateRange = (range: 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_year' | 'all_time') => {
     const d = new Date();
@@ -103,9 +135,7 @@ export default function ReportsScreen() {
   };
 
   const getRangeLabel = () => {
-    if (filters.startDate === filters.endDate) return formatDate(filters.startDate);
-    if (filters.startDate === '2000-01-01') return 'All Time';
-    return `${formatDate(filters.startDate)} - ${formatDate(filters.endDate)}`;
+    return formatDateRange(filters.startDate, filters.endDate);
   };
 
   return (
@@ -168,7 +198,20 @@ export default function ReportsScreen() {
                 <Button title="Retry" variant="outline" onPress={() => refetchCategories()} />
               </View>
             ) : (
-              <SpendingBreakdown data={categories ?? []} />
+              <SpendingBreakdown
+                data={categories ?? []}
+                onSelectCategory={(category) =>
+                  router.push({
+                    pathname: '/category-transactions',
+                    params: {
+                      category,
+                      startDate: filters.startDate,
+                      endDate: filters.endDate,
+                      accountId: filters.accountId,
+                    },
+                  })
+                }
+              />
             )}
           </View>
         </View>
@@ -214,38 +257,47 @@ export default function ReportsScreen() {
         </View>
 
         <View style={sectionCard}>
-          <Text style={sectionTitle}>Export Report</Text>
+          <Text style={sectionTitle}>Download Report</Text>
           <Text style={sectionSubtitle}>Download your data</Text>
           <View style={{ marginTop: 16, gap: 12 }}>
-            <Pressable
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FEF2F2', borderRadius: 14, padding: 14 }}
+            <ExportButton
+              title="PDF"
+              subtitle="Summary and transactions, ready to print"
+              icon="file-pdf-box"
+              color="#EF4444"
+              backgroundColor="#FEF2F2"
+              iconBackgroundColor="#FEE2E2"
+              loading={exporting === 'pdf'}
+              disabled={exporting !== null}
               onPress={() => handleExport('pdf')}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
-                <MaterialCommunityIcons name="file-pdf-box" size={22} color="#EF4444" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Export as PDF</Text>
-                <Text style={{ fontSize: 12, color: '#9CA3AF' }}>Printable report</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
-            </Pressable>
-            <Pressable
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#F0FDF4', borderRadius: 14, padding: 14 }}
+            />
+            <ExportButton
+              title="Excel"
+              subtitle="Summary and transactions in a spreadsheet"
+              icon="file-excel-box"
+              color="#22C55E"
+              backgroundColor="#F0FDF4"
+              iconBackgroundColor="#DCFCE7"
+              loading={exporting === 'excel'}
+              disabled={exporting !== null}
               onPress={() => handleExport('excel')}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center' }}>
-                <MaterialCommunityIcons name="file-excel-box" size={22} color="#22C55E" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>Export as Excel</Text>
-                <Text style={{ fontSize: 12, color: '#9CA3AF' }}>Spreadsheet format</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
-            </Pressable>
+            />
           </View>
         </View>
       </ScrollView>
+
+      {/* Report Ready Modal */}
+      <Modal visible={preparedReport !== null} onClose={() => setPreparedReport(null)} title="Your report is ready">
+        {preparedReport && (
+          <View style={{ gap: 12 }}>
+            <Text style={{ fontSize: 13, color: '#6B7280' }} numberOfLines={1} ellipsizeMode="middle">
+              {preparedReport.fileName}
+            </Text>
+            <Button title="Save to phone" onPress={() => handleSaveReport(preparedReport)} />
+            <Button title="Share" variant="outline" onPress={() => handleShareReport(preparedReport)} />
+          </View>
+        )}
+      </Modal>
 
       {/* Filter Modal */}
       <Modal visible={showFilters} onClose={() => setShowFilters(false)} title="Report Filters">
@@ -422,7 +474,53 @@ export default function ReportsScreen() {
   );
 }
 
-function SpendingBreakdown({ data }: { data: CategoryComparison[] }) {
+function ExportButton({
+  title,
+  subtitle,
+  icon,
+  color,
+  backgroundColor,
+  iconBackgroundColor,
+  loading,
+  disabled,
+  onPress,
+}: {
+  title: string;
+  subtitle: string;
+  icon: 'file-pdf-box' | 'file-excel-box';
+  color: string;
+  backgroundColor: string;
+  iconBackgroundColor: string;
+  loading: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor, borderRadius: 14, padding: 14, opacity: disabled && !loading ? 0.5 : 1 }}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={`Download ${title}`}
+      accessibilityState={{ busy: loading, disabled }}
+    >
+      <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: iconBackgroundColor, alignItems: 'center', justifyContent: 'center' }}>
+        <MaterialCommunityIcons name={icon} size={22} color={color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>{loading ? 'Preparing your report…' : title}</Text>
+        <Text style={{ fontSize: 12, color: '#9CA3AF' }}>{subtitle}</Text>
+      </View>
+      {loading ? (
+        <ActivityIndicator size="small" color={color} />
+      ) : (
+        <MaterialCommunityIcons name="download" size={20} color="#9CA3AF" />
+      )}
+    </Pressable>
+  );
+}
+
+function SpendingBreakdown({ data, onSelectCategory }: { data: CategoryComparison[]; onSelectCategory: (category: string) => void }) {
   const expenseCategories = data.filter((c) => c.type === 'expense');
   const totalExpense = expenseCategories.reduce((sum, c) => sum + c.currentMonthTotal, 0);
 
@@ -440,21 +538,30 @@ function SpendingBreakdown({ data }: { data: CategoryComparison[] }) {
         const percent = (cat.currentMonthTotal / totalExpense) * 100;
         const color = getCategoryColor(cat.category);
         return (
-          <View key={`${cat.category}-${index}`}>
+          <Pressable
+            key={`${cat.category}-${index}`}
+            onPress={() => onSelectCategory(cat.category)}
+            accessibilityRole="button"
+            accessibilityLabel={`View ${cat.category} expenses`}
+            className="active:opacity-60"
+          >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
                 <Text style={{ fontSize: 14, fontWeight: '500', color: '#111827' }}>{cat.category}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>
-                  {formatCurrency(cat.currentMonthTotal)}
-                </Text>
-                <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{percent.toFixed(0)}%</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827' }}>
+                    {formatCurrency(cat.currentMonthTotal)}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#9CA3AF' }}>{percent.toFixed(0)}%</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#9CA3AF" />
               </View>
             </View>
             <ProgressBar progress={percent} color={color} height={6} />
-          </View>
+          </Pressable>
         );
       })}
     </View>
