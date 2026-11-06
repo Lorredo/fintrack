@@ -27,11 +27,12 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 	limit, _ := strconv.Atoi(c.Query("limit", "20"))
 
 	filter := services.TransactionFilter{
-		Type:     c.Query("type", ""),
-		Category: c.Query("category", ""),
-		DateFrom: c.Query("dateFrom", ""),
-		DateTo:   c.Query("dateTo", ""),
-		Search:   c.Query("search", ""),
+		AccountID: c.Query("accountId", ""),
+		Type:      c.Query("type", ""),
+		Category:  c.Query("category", ""),
+		DateFrom:  c.Query("dateFrom", ""),
+		DateTo:    c.Query("dateTo", ""),
+		Search:    c.Query("search", ""),
 	}
 
 	result, err := h.service.List(c.Context(), userID, page, limit, filter)
@@ -168,7 +169,7 @@ func (h *TransactionHandler) Delete(c *fiber.Ctx) error {
 func (h *TransactionHandler) Categories(c *fiber.Ctx) error {
 	userID := c.Locals("userID").(string)
 
-	categories, err := h.service.GetDistinctCategories(c.Context(), userID)
+	categories, err := h.service.GetDistinctCategories(c.Context(), userID, c.Query("type", ""))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to fetch categories",

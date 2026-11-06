@@ -23,3 +23,12 @@ type ReportSummary struct {
 	Trends             []MonthlyTrend      `json:"trends"`
 	CategoryComparisons []CategoryComparison `json:"categoryComparisons"`
 }
+
+type ExportRow struct {
+	Date        string  `json:"date"`
+	Type        string  `json:"type"`
+	Amount      float64 `json:"amount"`
+	Category    string  `json:"category"`
+	Description string  `json:"description"`
+	Wallet      string  `json:"wallet"`
+}

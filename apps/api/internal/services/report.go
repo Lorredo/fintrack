@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"strings"
 	"time"
@@ -204,40 +205,67 @@ func (s *ReportService) GetCategories(ctx context.Context, userID, startDate, en
 	return comparisons, nil
 }
 
-func (s *ReportService) ExportCSV(ctx context.Context, userID, startDate, endDate, accountId, txType string) (string, error) {
-	queryStr := `SELECT date, type, amount, category, description FROM transactions WHERE user_id = $1 AND date >= $2 AND date <= $3`
+// ExportRows returns every transaction in the period, newest first, with wallet
+// names resolved. Transactions without a description are included.
+func (s *ReportService) ExportRows(ctx context.Context, userID, startDate, endDate, accountId, txType string) ([]models.ExportRow, error) {
+	queryStr := `SELECT t.date, t.type, t.amount, t.category, COALESCE(t.description, ''), COALESCE(a.name, ''), COALESCE(ta.name, '')
+		FROM transactions t
+		LEFT JOIN accounts a ON a.id = t.account_id
+		LEFT JOIN accounts ta ON ta.id = t.transfer_account_id
+		WHERE t.user_id = $1 AND t.date >= $2 AND t.date <= $3`
 	args := []interface{}{userID, startDate, endDate}
 
 	if accountId != "" {
-		queryStr += fmt.Sprintf(" AND (account_id = $%d OR transfer_account_id = $%d)", len(args)+1, len(args)+1)
+		queryStr += fmt.Sprintf(" AND (t.account_id = $%d OR t.transfer_account_id = $%d)", len(args)+1, len(args)+1)
 		args = append(args, accountId)
 	}
 	if txType != "" {
-		queryStr += fmt.Sprintf(" AND type = $%d", len(args)+1)
+		queryStr += fmt.Sprintf(" AND t.type = $%d", len(args)+1)
 		args = append(args, txType)
 	}
 
-	queryStr += " ORDER BY date DESC, created_at DESC"
+	queryStr += " ORDER BY t.date DESC, t.created_at DESC"
 
 	rows, err := s.db.Query(ctx, queryStr, args...)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer rows.Close()
 
-	var sb strings.Builder
-	sb.WriteString("Date,Type,Amount,Category,Description\n")
-
+	result := make([]models.ExportRow, 0)
 	for rows.Next() {
 		var date time.Time
-		var type_, category, description string
-		var amount float64
-		if err := rows.Scan(&date, &type_, &amount, &category, &description); err != nil {
-			continue
+		var row models.ExportRow
+		var transferWallet string
+		if err := rows.Scan(&date, &row.Type, &row.Amount, &row.Category, &row.Description, &row.Wallet, &transferWallet); err != nil {
+			return nil, err
 		}
-		sb.WriteString(fmt.Sprintf("%s,%s,%.2f,%s,\"%s\"\n",
-			date.Format("2006-01-02"), type_, amount, category, strings.ReplaceAll(description, "\"", "\"\"")))
+		row.Date = date.Format("2006-01-02")
+		if transferWallet != "" {
+			row.Wallet += " → " + transferWallet
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
+func (s *ReportService) ExportCSV(ctx context.Context, userID, startDate, endDate, accountId, txType string) (string, error) {
+	rows, err := s.ExportRows(ctx, userID, startDate, endDate, accountId, txType)
+	if err != nil {
+		return "", err
 	}
 
-	return sb.String(), nil
+	var sb strings.Builder
+	w := csv.NewWriter(&sb)
+	if err := w.Write([]string{"Date", "Type", "Amount", "Category", "Description"}); err != nil {
+		return "", err
+	}
+	for _, row := range rows {
+		record := []string{row.Date, row.Type, fmt.Sprintf("%.2f", row.Amount), row.Category, row.Description}
+		if err := w.Write(record); err != nil {
+			return "", err
+		}
+	}
+	w.Flush()
+	return sb.String(), w.Error()
 }

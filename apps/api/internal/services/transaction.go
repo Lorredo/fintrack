@@ -268,8 +268,14 @@ func joinStrings(strs []string, sep string) string {
 	return result
 }
 
-func (s *TransactionService) GetDistinctCategories(ctx context.Context, userID string) ([]string, error) {
-	rows, err := s.db.Query(ctx, `SELECT DISTINCT category FROM transactions WHERE user_id = $1 AND category != 'Transfer' AND category != '' ORDER BY category ASC`, userID)
+func (s *TransactionService) GetDistinctCategories(ctx context.Context, userID, txType string) ([]string, error) {
+	query := `SELECT DISTINCT category FROM transactions WHERE user_id = $1 AND category != 'Transfer' AND category != ''`
+	args := []interface{}{userID}
+	if txType != "" {
+		query += ` AND type = $2`
+		args = append(args, txType)
+	}
+	rows, err := s.db.Query(ctx, query+` ORDER BY category ASC`, args...)
 	if err != nil {
 		return nil, err
 	}
