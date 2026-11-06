@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -54,6 +55,33 @@ func (h *AccountHandler) List(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"data": accounts,
+	})
+}
+
+func (h *AccountHandler) SetBalance(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	id := c.Params("id")
+
+	var req models.SetBalanceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	result, err := h.service.SetBalance(c.Context(), id, userID, req)
+	if errors.Is(err, services.ErrAccountNotFound) {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Wallet not found"})
+	}
+	if err != nil {
+		log.Printf("ERROR setting balance: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to update balance"})
+	}
+
+	return c.JSON(fiber.Map{
+		"data": result,
 	})
 }
 

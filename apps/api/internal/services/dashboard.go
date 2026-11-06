@@ -75,11 +75,11 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 	var catRows pgx.Rows
 	if accountID != "" {
 		catRows, err = s.db.Query(ctx,
-			`SELECT category, type, SUM(amount) as total, COUNT(*) as count FROM transactions WHERE user_id = $1 AND account_id = $2 AND type != 'transfer' AND date >= $3 AND date < $4 GROUP BY category, type ORDER BY total DESC`,
+			`SELECT category, type, SUM(amount) as total, COUNT(*) as count FROM transactions WHERE user_id = $1 AND account_id = $2 AND type IN ('income', 'expense') AND date >= $3 AND date < $4 GROUP BY category, type ORDER BY total DESC`,
 			userID, accountID, startDate, endDate)
 	} else {
 		catRows, err = s.db.Query(ctx,
-			`SELECT category, type, SUM(amount) as total, COUNT(*) as count FROM transactions WHERE user_id = $1 AND type != 'transfer' AND date >= $2 AND date < $3 GROUP BY category, type ORDER BY total DESC`,
+			`SELECT category, type, SUM(amount) as total, COUNT(*) as count FROM transactions WHERE user_id = $1 AND type IN ('income', 'expense') AND date >= $2 AND date < $3 GROUP BY category, type ORDER BY total DESC`,
 			userID, startDate, endDate)
 	}
 	if err != nil { return nil, err }
@@ -99,8 +99,8 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 			`SELECT COALESCE(
 				SUM(
 					CASE 
-						WHEN type = 'income' AND account_id = $2 THEN amount 
-						WHEN type = 'expense' AND account_id = $2 THEN -amount 
+						WHEN type IN ('income', 'adjust_in') AND account_id = $2 THEN amount 
+						WHEN type IN ('expense', 'adjust_out') AND account_id = $2 THEN -amount 
 						WHEN type = 'transfer' AND account_id = $2 THEN -amount 
 						WHEN type = 'transfer' AND transfer_account_id = $2 THEN amount 
 						ELSE 0 
@@ -113,8 +113,8 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 			`SELECT COALESCE(
 				SUM(
 					CASE 
-						WHEN type = 'income' THEN amount 
-						WHEN type = 'expense' THEN -amount 
+						WHEN type IN ('income', 'adjust_in') THEN amount 
+						WHEN type IN ('expense', 'adjust_out') THEN -amount 
 						ELSE 0 
 					END
 				), 0)

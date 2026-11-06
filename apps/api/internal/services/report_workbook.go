@@ -222,7 +222,7 @@ func writeTransactionsSheet(f *excelize.File, styles workbookStyles, rows []mode
 		// SetCellStr keeps user text as text, so a description starting with
 		// "=" can't become a formula.
 		for column, value := range map[string]string{
-			"B": titleCase(row.Type),
+			"B": exportTypeLabel(row.Type),
 			"C": row.Category,
 			"D": row.Description,
 			"E": row.Wallet,
@@ -260,7 +260,10 @@ func writeTransactionsSheet(f *excelize.File, styles workbookStyles, rows []mode
 	})
 }
 
-func titleCase(value string) string {
+func exportTypeLabel(value string) string {
+	if strings.HasPrefix(value, "adjust_") {
+		return "Adjustment"
+	}
 	if value == "" {
 		return value
 	}

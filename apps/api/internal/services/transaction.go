@@ -135,13 +135,17 @@ func (s *TransactionService) Get(ctx context.Context, id, userID string) (*model
 }
 
 func (s *TransactionService) Create(ctx context.Context, userID string, req models.CreateTransactionRequest) (*models.Transaction, error) {
+	if req.Fee > 0 && req.Type != models.TransactionTypeTransfer {
+		return nil, fmt.Errorf("only transfers can have a fee")
+	}
+
 	if req.Type == "expense" || req.Type == "transfer" {
 		var balance float64
 		err := s.db.QueryRow(ctx, `
 			SELECT COALESCE(SUM(
 				CASE 
-					WHEN type = 'income' AND account_id = $2 THEN amount 
-					WHEN type = 'expense' AND account_id = $2 THEN -amount 
+					WHEN type IN ('income', 'adjust_in') AND account_id = $2 THEN amount 
+					WHEN type IN ('expense', 'adjust_out') AND account_id = $2 THEN -amount 
 					WHEN type = 'transfer' AND account_id = $2 THEN -amount 
 					WHEN type = 'transfer' AND transfer_account_id = $2 THEN amount 
 					ELSE 0 
@@ -153,20 +157,27 @@ func (s *TransactionService) Create(ctx context.Context, userID string, req mode
 			return nil, err
 		}
 		
-		if req.Amount > balance {
+		if req.Amount+req.Fee > balance {
 			return nil, fmt.Errorf("insufficient balance in source account")
 		}
 	}
 
+	query := `INSERT INTO transactions (user_id, account_id, transfer_account_id, type, amount, category, description, date)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 RETURNING id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at`
+	args := []interface{}{userID, req.AccountID, req.TransferAccountID, req.Type, req.Amount, req.Category, req.Description, req.Date}
+	if req.Fee > 0 {
+		// One statement, so the transfer and its fee save together or not at all.
+		query = `WITH fee AS (
+			INSERT INTO transactions (user_id, account_id, type, amount, category, description, date)
+			SELECT $1::uuid, $2::uuid, 'expense', $9::numeric, 'Transfer Fees', 'Transfer fee', $8::date
+		 ) ` + query
+		args = append(args, req.Fee)
+	}
+
 	var t models.Transaction
 	var dateTime time.Time
-	err := s.db.QueryRow(
-		ctx,
-		`INSERT INTO transactions (user_id, account_id, transfer_account_id, type, amount, category, description, date)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		 RETURNING id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at`,
-		userID, req.AccountID, req.TransferAccountID, req.Type, req.Amount, req.Category, req.Description, req.Date,
-	).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
+	err := s.db.QueryRow(ctx, query, args...).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -269,13 +280,13 @@ func joinStrings(strs []string, sep string) string {
 }
 
 func (s *TransactionService) GetDistinctCategories(ctx context.Context, userID, txType string) ([]string, error) {
-	query := `SELECT DISTINCT category FROM transactions WHERE user_id = $1 AND category != 'Transfer' AND category != ''`
+	query := `SELECT category FROM transactions WHERE user_id = $1 AND category != 'Transfer' AND category != ''`
 	args := []interface{}{userID}
 	if txType != "" {
 		query += ` AND type = $2`
 		args = append(args, txType)
 	}
-	rows, err := s.db.Query(ctx, query+` ORDER BY category ASC`, args...)
+	rows, err := s.db.Query(ctx, query+` GROUP BY category ORDER BY COUNT(*) DESC, category ASC`, args...)
 	if err != nil {
 		return nil, err
 	}

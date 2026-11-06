@@ -39,6 +39,7 @@ func TestBuildReportWorkbook(t *testing.T) {
 		{Date: "2026-11-02", Type: "expense", Amount: 250.5, Category: "Food, Drinks", Description: "=SUM(A1)", Wallet: "Main"},
 		{Date: "2026-11-01", Type: "expense", Amount: 749.5, Category: "Housing", Wallet: "Main"},
 		{Date: "2026-11-01", Type: "transfer", Amount: 500, Category: "Transfer", Wallet: "Main → Savings"},
+		{Date: "2026-11-01", Type: "adjust_out", Amount: 70, Category: "Balance Adjustment", Wallet: "Main"},
 	}
 	f := openWorkbook(t, rows, "2026-11-01", "2026-11-30")
 
@@ -49,9 +50,9 @@ func TestBuildReportWorkbook(t *testing.T) {
 	summary := map[string]string{
 		"A2":  "Nov 1, 2026 - Nov 30, 2026",
 		"B4":  "₱1,000.00",
-		"B5":  "₱1,000.00", // transfers are not spending
+		"B5":  "₱1,000.00", // transfers and adjustments are not spending
 		"B6":  "₱0.00",
-		"B7":  "4",
+		"B7":  "5",
 		"A10": "Housing", // largest category first
 		"B10": "₱749.50",
 		"C10": "74.95%",
@@ -70,6 +71,7 @@ func TestBuildReportWorkbook(t *testing.T) {
 		"D2": "",
 		"F3": "₱250.50",
 		"E5": "Main → Savings",
+		"B6": "Adjustment",
 	}
 	for ref, want := range transactions {
 		if got := cellValue(t, f, "Transactions", ref); got != want {

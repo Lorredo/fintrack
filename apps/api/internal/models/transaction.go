@@ -8,6 +8,11 @@ const (
 	TransactionTypeIncome   TransactionType = "income"
 	TransactionTypeExpense  TransactionType = "expense"
 	TransactionTypeTransfer TransactionType = "transfer"
+
+	// Adjustments correct a wallet's balance without counting as income or
+	// spending. They are created by POST /accounts/:id/balance only.
+	TransactionTypeAdjustIn  TransactionType = "adjust_in"
+	TransactionTypeAdjustOut TransactionType = "adjust_out"
 )
 
 type Transaction struct {
@@ -29,6 +34,7 @@ type CreateTransactionRequest struct {
 	TransferAccountID *string         `json:"transferAccountId,omitempty"`
 	Type              TransactionType `json:"type" validate:"required,oneof=income expense transfer"`
 	Amount            float64         `json:"amount" validate:"required,gt=0"`
+	Fee               float64         `json:"fee,omitempty" validate:"omitempty,gt=0"`
 	Category          string          `json:"category"`
 	Description       *string         `json:"description,omitempty"`
 	Date              string          `json:"date" validate:"required"`

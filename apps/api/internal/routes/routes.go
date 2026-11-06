@@ -70,6 +70,7 @@ func Setup(app *fiber.App, authHandler *handlers.AuthHandler, transactionHandler
 	accounts := api.Group("/accounts", middleware.AuthRequired())
 	accounts.Get("/", accountHandler.List)
 	accounts.Post("/", accountHandler.Create)
+	accounts.Post("/:id/balance", accountHandler.SetBalance)
 	accounts.Put("/:id", accountHandler.Update)
 	accounts.Delete("/:id", accountHandler.Delete)
 }
