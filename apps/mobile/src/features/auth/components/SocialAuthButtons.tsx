@@ -186,7 +186,12 @@ export const GoogleButton: React.FC<GoogleButtonProps> = ({
   const handlePress = async () => {
     if (disabled || !request) return;
     try {
-      await promptAsync();
+      // Android's default opens Google in a separate Chrome task that outlives
+      // the sign-in. An unfinished page left there can come back on the next
+      // try and return an old request's state, which the app rightly rejects
+      // ("Cross-Site request verification failed"). Opening it in the app's
+      // own task closes it with the sign-in.
+      await promptAsync(Platform.OS === 'android' ? { createTask: false } : undefined);
     } catch (err: unknown) {
       onError(getErrorMessage(err) || 'Failed to open Google sign-in');
     }

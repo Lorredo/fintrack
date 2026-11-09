@@ -427,42 +427,66 @@ func (s *BillService) Skip(ctx context.Context, userID, id string, req models.Sk
 	return tx.Commit(ctx)
 }
 
-func (s *BillService) GetSettings(ctx context.Context, userID string) (*models.PaySettings, error) {
+const settingsColumns = `pay_schedule, savings_per_payday, bill_reminders, salary_per_payday, extra_to_savings_percent`
+
+func scanSettings(row pgx.Row) (*models.PaySettings, error) {
 	var settings models.PaySettings
-	err := s.db.QueryRow(ctx,
-		`SELECT pay_schedule, savings_per_payday, bill_reminders FROM users WHERE id = $1`, userID,
-	).Scan(&settings.PaySchedule, &settings.SavingsPerPayday, &settings.BillReminders)
+	err := row.Scan(&settings.PaySchedule, &settings.SavingsPerPayday, &settings.BillReminders,
+		&settings.SalaryPerPayday, &settings.ExtraToSavingsPercent)
 	if err != nil {
 		return nil, err
 	}
 	return &settings, nil
 }
 
+func (s *BillService) GetSettings(ctx context.Context, userID string) (*models.PaySettings, error) {
+	return scanSettings(s.db.QueryRow(ctx, `SELECT `+settingsColumns+` FROM users WHERE id = $1`, userID))
+}
+
 func (s *BillService) UpdateSettings(ctx context.Context, userID string, req models.UpdatePaySettingsRequest) (*models.PaySettings, error) {
-	var settings models.PaySettings
-	err := s.db.QueryRow(ctx,
+	return scanSettings(s.db.QueryRow(ctx,
 		`UPDATE users SET
 			pay_schedule = COALESCE($2::varchar, pay_schedule),
 			savings_per_payday = COALESCE($3::numeric, savings_per_payday),
 			bill_reminders = COALESCE($4::boolean, bill_reminders),
+			salary_per_payday = COALESCE($5::numeric, salary_per_payday),
+			extra_to_savings_percent = COALESCE($6::smallint, extra_to_savings_percent),
 			updated_at = NOW()
 		 WHERE id = $1
-		 RETURNING pay_schedule, savings_per_payday, bill_reminders`,
-		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders,
-	).Scan(&settings.PaySchedule, &settings.SavingsPerPayday, &settings.BillReminders)
-	if err != nil {
-		return nil, err
-	}
-	return &settings, nil
+		 RETURNING `+settingsColumns,
+		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders, req.SalaryPerPayday, req.ExtraToSavingsPercent,
+	))
 }
 
 func round2(value float64) float64 {
 	return math.Round(value*100) / 100
 }
 
-// SafeToSpend works out what can be spent each day until the next payday:
-// the balance of counted wallets, minus bills due before payday (including
-// overdue ones) and the savings still to set aside this pay period.
+// sumInPeriod adds up one kind of transaction from counted wallets dated
+// within [start, end). Bill payments are left out, since bills are planned
+// for separately.
+func (s *BillService) sumInPeriod(ctx context.Context, userID, txType string, start, end time.Time) (float64, error) {
+	var total float64
+	err := s.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(t.amount), 0)
+		FROM transactions t
+		JOIN accounts a ON a.id = t.account_id
+		WHERE t.user_id = $1 AND t.type = $2 AND a.in_safe_to_spend
+			AND t.date >= $3 AND t.date < $4
+			AND NOT EXISTS (SELECT 1 FROM bill_payments bp WHERE bp.transaction_id = t.id)`,
+		userID, txType, FormatDay(start), FormatDay(end)).Scan(&total)
+	return total, err
+}
+
+// SafeToSpend works out what can be spent each day until the next payday.
+//
+// With a salary set, it plans from this period's pay: pay, minus every bill
+// due this period, minus savings (plus a share of any income above the
+// salary), minus what has been spent since payday. That plan is capped by the
+// balance-based amount, so it never suggests money the wallets don't hold.
+//
+// Without a salary, it is the balance-based amount: counted wallets, minus
+// unpaid bills before payday and the savings still to set aside.
 func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time.Time) (*models.SafeToSpend, error) {
 	settings, err := s.GetSettings(ctx, userID)
 	if err != nil {
@@ -473,7 +497,9 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 		Configured:  settings.PaySchedule != nil,
 		PaySchedule: settings.PaySchedule,
 		Today:       FormatDay(today),
+		Mode:        "balance",
 		Bills:       make([]models.ReservedBill, 0),
+		PeriodBills: make([]models.ReservedBill, 0),
 	}
 
 	// Transfers between two counted wallets cancel out here, since each side
@@ -500,6 +526,7 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 		schedule = *settings.PaySchedule
 	}
 	period := CurrentPayPeriod(schedule, today)
+	result.PeriodStart = FormatDay(period.Start)
 	result.NextPayday = FormatDay(period.NextPayday)
 	result.DaysLeft = DaysBetween(today, period.NextPayday)
 
@@ -514,30 +541,59 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	defer rows.Close()
 
 	lastDay := period.NextPayday.AddDate(0, 0, -1)
+	beforePeriod := period.Start.AddDate(0, 0, -1)
 	for rows.Next() {
 		b, start, err := scanBill(rows)
 		if err != nil {
 			return nil, err
 		}
-		for _, due := range unpaidDueDates(start, b.Frequency, paid[b.ID], lastDay) {
-			result.BillsReserved += b.Amount
-			result.Bills = append(result.Bills, models.ReservedBill{
-				BillID:  b.ID,
-				Name:    b.Name,
-				DueDate: FormatDay(due),
-				Amount:  b.Amount,
-				Overdue: due.Before(today),
+		reserve := func(list *[]models.ReservedBill, total *float64, due time.Time) {
+			*total += b.Amount
+			*list = append(*list, models.ReservedBill{
+				BillID: b.ID, Name: b.Name, DueDate: FormatDay(due), Amount: b.Amount, Overdue: due.Before(today),
 			})
+		}
+
+		// Balance: bills still to pay before payday.
+		for _, due := range unpaidDueDates(start, b.Frequency, paid[b.ID], lastDay) {
+			reserve(&result.Bills, &result.BillsReserved, due)
+		}
+		// Salary plan: every bill this period comes out of this pay, paid or
+		// not, plus unpaid ones carried over from before.
+		for _, due := range unpaidDueDates(start, b.Frequency, paid[b.ID], beforePeriod) {
+			reserve(&result.PeriodBills, &result.BillsThisPeriod, due)
+		}
+		for _, due := range Occurrences(start, b.Frequency, lastDay) {
+			if !due.Before(period.Start) {
+				reserve(&result.PeriodBills, &result.BillsThisPeriod, due)
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	sort.SliceStable(result.Bills, func(i, j int) bool { return result.Bills[i].DueDate < result.Bills[j].DueDate })
+	sort.SliceStable(result.PeriodBills, func(i, j int) bool { return result.PeriodBills[i].DueDate < result.PeriodBills[j].DueDate })
+
+	salaryMode := settings.SalaryPerPayday > 0
+	if salaryMode {
+		result.Mode = "salary"
+		result.Salary = settings.SalaryPerPayday
+		if result.IncomeRecorded, err = s.sumInPeriod(ctx, userID, "income", period.Start, period.NextPayday); err != nil {
+			return nil, err
+		}
+		if result.SpentSincePayday, err = s.sumInPeriod(ctx, userID, "expense", period.Start, period.NextPayday); err != nil {
+			return nil, err
+		}
+		result.PayEstimated = result.IncomeRecorded < result.Salary
+		result.Pay = math.Max(result.IncomeRecorded, result.Salary)
+		result.ExtraIncome = math.Max(result.IncomeRecorded-result.Salary, 0)
+		result.ExtraSaved = round2(result.ExtraIncome * float64(settings.ExtraToSavingsPercent) / 100)
+	}
 
 	// Money already moved into a wallet that isn't counted (such as savings)
 	// this period has been set aside, so it isn't reserved a second time.
-	result.SavingsTarget = settings.SavingsPerPayday
+	result.SavingsTarget = settings.SavingsPerPayday + result.ExtraSaved
 	if result.SavingsTarget > 0 {
 		err = s.db.QueryRow(ctx, `
 			SELECT COALESCE(SUM(t.amount), 0)
@@ -556,9 +612,24 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 
 	result.Balance = round2(result.Balance)
 	result.BillsReserved = round2(result.BillsReserved)
+	result.SavingsTarget = round2(result.SavingsTarget)
 	result.SavingsMoved = round2(result.SavingsMoved)
 	result.SavingsReserved = round2(result.SavingsReserved)
-	result.Spendable = round2(result.Balance - result.BillsReserved - result.SavingsReserved)
+	result.BalanceLeft = round2(result.Balance - result.BillsReserved - result.SavingsReserved)
+	result.Spendable = result.BalanceLeft
+
+	if salaryMode {
+		result.IncomeRecorded = round2(result.IncomeRecorded)
+		result.Pay = round2(result.Pay)
+		result.ExtraIncome = round2(result.ExtraIncome)
+		result.BillsThisPeriod = round2(result.BillsThisPeriod)
+		result.SpentSincePayday = round2(result.SpentSincePayday)
+		result.SpendingMoney = round2(result.Pay - result.BillsThisPeriod - result.SavingsTarget)
+		result.PlannedLeft = round2(result.SpendingMoney - result.SpentSincePayday)
+		result.LimitedByBalance = result.BalanceLeft < result.PlannedLeft
+		result.Spendable = math.Min(result.PlannedLeft, result.BalanceLeft)
+	}
+
 	result.PerDay = round2(result.Spendable / float64(max(result.DaysLeft, 1)))
 	return result, nil
 }

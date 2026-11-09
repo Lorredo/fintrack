@@ -463,7 +463,7 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 		})
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE users SET pay_schedule = NULL, savings_per_payday = 0, updated_at = NOW() WHERE id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE users SET pay_schedule = NULL, savings_per_payday = 0, salary_per_payday = 0, extra_to_savings_percent = 50, updated_at = NOW() WHERE id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to reset pay settings",
 		})

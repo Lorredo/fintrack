@@ -57,6 +57,10 @@ export interface PaySettings {
   paySchedule: PaySchedule | null;
   savingsPerPayday: number;
   billReminders: boolean;
+  /** 0 means Safe to Spend uses wallet balances only. */
+  salaryPerPayday: number;
+  /** Share of income above the salary (overtime, bonuses) that goes to savings. */
+  extraToSavingsPercent: 0 | 50 | 100;
 }
 
 export interface ReservedBill {
@@ -81,4 +85,24 @@ export interface SafeToSpend {
   spendable: number;
   perDay: number;
   bills: ReservedBill[];
+
+  mode: 'salary' | 'balance';
+  periodStart: string;
+  /** The balance-based amount, which also caps the salary plan. */
+  balanceLeft: number;
+  limitedByBalance: boolean;
+
+  // Salary mode.
+  salary: number;
+  incomeRecorded: number;
+  /** True until the salary has been recorded as income this period. */
+  payEstimated: boolean;
+  pay: number;
+  extraIncome: number;
+  extraSaved: number;
+  billsThisPeriod: number;
+  periodBills: ReservedBill[];
+  spendingMoney: number;
+  spentSincePayday: number;
+  plannedLeft: number;
 }

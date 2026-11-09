@@ -74,12 +74,19 @@ type PaySettings struct {
 	PaySchedule      *string `json:"paySchedule"`
 	SavingsPerPayday float64 `json:"savingsPerPayday"`
 	BillReminders    bool    `json:"billReminders"`
+	// 0 keeps Safe to Spend based on wallet balances only.
+	SalaryPerPayday float64 `json:"salaryPerPayday"`
+	// Share of income above the salary (overtime, bonuses) that goes to savings.
+	ExtraToSavingsPercent int `json:"extraToSavingsPercent"`
 }
 
 type UpdatePaySettingsRequest struct {
 	PaySchedule      *string  `json:"paySchedule,omitempty" validate:"omitempty,oneof=semi_monthly irregular"`
 	SavingsPerPayday *float64 `json:"savingsPerPayday,omitempty" validate:"omitempty,gte=0"`
 	BillReminders    *bool    `json:"billReminders,omitempty"`
+	SalaryPerPayday  *float64 `json:"salaryPerPayday,omitempty" validate:"omitempty,gte=0"`
+	// Pointer so 0 ("spend it all") is accepted.
+	ExtraToSavingsPercent *int `json:"extraToSavingsPercent,omitempty" validate:"omitempty,oneof=0 50 100"`
 }
 
 type ReservedBill struct {
@@ -105,4 +112,25 @@ type SafeToSpend struct {
 	Spendable       float64        `json:"spendable"`
 	PerDay          float64        `json:"perDay"`
 	Bills           []ReservedBill `json:"bills"`
+
+	// "salary" plans from this period's pay; "balance" uses wallet balances only.
+	Mode string `json:"mode"`
+	// The balance-based amount, which also caps the salary-based one.
+	BalanceLeft      float64 `json:"balanceLeft"`
+	LimitedByBalance bool    `json:"limitedByBalance"`
+
+	// Salary mode only.
+	Salary         float64 `json:"salary"`
+	IncomeRecorded float64 `json:"incomeRecorded"`
+	// True until the salary has been recorded as income this period.
+	PayEstimated     bool           `json:"payEstimated"`
+	Pay              float64        `json:"pay"`
+	ExtraIncome      float64        `json:"extraIncome"`
+	ExtraSaved       float64        `json:"extraSaved"`
+	BillsThisPeriod  float64        `json:"billsThisPeriod"`
+	PeriodBills      []ReservedBill `json:"periodBills"`
+	SpendingMoney    float64        `json:"spendingMoney"`
+	SpentSincePayday float64        `json:"spentSincePayday"`
+	PlannedLeft      float64        `json:"plannedLeft"`
+	PeriodStart      string         `json:"periodStart"`
 }

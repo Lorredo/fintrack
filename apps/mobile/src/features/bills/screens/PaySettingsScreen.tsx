@@ -11,6 +11,12 @@ import { usePaySettings, useUpdatePaySettings } from '../hooks/useBills';
 import { requestReminderPermission } from '../services/reminders';
 import type { PaySchedule, PaySettings } from '../types';
 
+const EXTRA_SPLITS: { value: PaySettings['extraToSavingsPercent']; label: string }[] = [
+  { value: 0, label: 'Spend it' },
+  { value: 50, label: 'Split 50/50' },
+  { value: 100, label: 'Save it' },
+];
+
 const SCHEDULES: { value: PaySchedule | null; label: string }[] = [
   { value: 'semi_monthly', label: '15th and 30th' },
   { value: 'irregular', label: 'Irregular / freelance' },
@@ -24,14 +30,26 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   const [paySchedule, setPaySchedule] = useState<PaySchedule | null>(settings.paySchedule ?? 'semi_monthly');
   const [savings, setSavings] = useState(settings.savingsPerPayday > 0 ? String(settings.savingsPerPayday) : '');
   const [billReminders, setBillReminders] = useState(settings.billReminders);
+  const [salary, setSalary] = useState(settings.salaryPerPayday > 0 ? String(settings.salaryPerPayday) : '');
+  const [extraToSavings, setExtraToSavings] = useState(settings.extraToSavingsPercent ?? 50);
 
   const parsedSavings = savings.trim() === '' ? 0 : Number(savings);
-  const isValid = Number.isFinite(parsedSavings) && parsedSavings >= 0;
+  const parsedSalary = salary.trim() === '' ? 0 : Number(salary);
+  const savingsValid = Number.isFinite(parsedSavings) && parsedSavings >= 0;
+  const salaryValid = Number.isFinite(parsedSalary) && parsedSalary >= 0;
+  const isValid = savingsValid && salaryValid;
+  const isIrregular = paySchedule === 'irregular';
 
   const handleSave = () => {
     if (!isValid || !paySchedule) return;
     updateSettings.mutate(
-      { paySchedule, savingsPerPayday: Math.round(parsedSavings * 100) / 100, billReminders },
+      {
+        paySchedule,
+        savingsPerPayday: Math.round(parsedSavings * 100) / 100,
+        salaryPerPayday: Math.round(parsedSalary * 100) / 100,
+        extraToSavingsPercent: extraToSavings,
+        billReminders,
+      },
       {
         onSuccess: () => {
           toast.success('Payday settings saved');
@@ -55,17 +73,50 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
 
       <View style={{ gap: 6 }}>
         <Input
+          label={isIrregular ? 'Expected income per month' : 'Salary per payday'}
+          placeholder="0.00"
+          keyboardType="decimal-pad"
+          value={salary}
+          onChangeText={setSalary}
+          error={salaryValid ? undefined : 'Enter 0 or more'}
+        />
+        <Text className="text-sm text-text-secondary">
+          Safe to Spend plans from this: your pay, minus bills and savings, minus what you spend. Leave it empty to use
+          your wallet balances instead.
+        </Text>
+      </View>
+
+      <View style={{ gap: 6 }}>
+        <Input
           label="Set aside for savings each payday"
           placeholder="0.00"
           keyboardType="decimal-pad"
           value={savings}
           onChangeText={setSavings}
-          error={isValid ? undefined : 'Enter 0 or more'}
+          error={savingsValid ? undefined : 'Enter 0 or more'}
         />
         <Text className="text-sm text-text-secondary">
           Kept out of Safe to Spend. Moving money into a wallet that isn’t counted, like a savings wallet, counts toward it.
         </Text>
       </View>
+
+      {parsedSalary > 0 && (
+        <View style={{ gap: 6 }}>
+          <ChoicePills
+            label="Overtime and other extra income"
+            choices={EXTRA_SPLITS}
+            value={extraToSavings}
+            onChange={setExtraToSavings}
+          />
+          <Text className="text-sm text-text-secondary">
+            {extraToSavings === 50
+              ? 'Income you record above your salary is split: half to savings, half to spending.'
+              : extraToSavings === 100
+                ? 'Income you record above your salary all goes to savings.'
+                : 'Income you record above your salary all goes to spending.'}
+          </Text>
+        </View>
+      )}
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1 }}>

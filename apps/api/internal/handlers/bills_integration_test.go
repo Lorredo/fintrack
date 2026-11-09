@@ -306,3 +306,104 @@ func TestWipeDataRemovesBills(t *testing.T) {
 	expectField(t, settings, "paySchedule", nil)
 	expectNumber(t, settings, "savingsPerPayday", 0)
 }
+
+func TestSafeToSpendFromSalary(t *testing.T) {
+	e := setup(t)
+	u := newUser(t, e)
+	gcash := u.wallet(t, "GCash", true)
+	maya := u.wallet(t, "Maya", true)
+
+	// Money from an earlier pay period is in the balance but isn't this pay.
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "income", "amount": 20000, "category": "Salary", "date": "2026-10-20",
+	})
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{
+		"paySchedule": "semi_monthly", "savingsPerPayday": 2000, "salaryPerPayday": 7000,
+	})
+	rent := u.bill(t, "Rent", 3500, "2026-11-10", gcash)
+
+	// Before the salary is recorded, the expected salary is used.
+	s := u.safeToSpend(t)
+	expectField(t, s, "mode", "salary")
+	expectField(t, s, "periodStart", "2026-10-30")
+	expectField(t, s, "payEstimated", true)
+	expectNumber(t, s, "pay", 7000)
+	expectNumber(t, s, "billsThisPeriod", 3500)
+	expectNumber(t, s, "spendingMoney", 1500)
+	expectNumber(t, s, "plannedLeft", 1500)
+	expectNumber(t, s, "balanceLeft", 14500)
+	expectField(t, s, "limitedByBalance", false)
+	expectNumber(t, s, "spendable", 1500)
+	expectNumber(t, s, "perDay", 250)
+
+	// Recording the salary and spending from it.
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "income", "amount": 7000, "category": "Salary", "date": "2026-10-30",
+	})
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "expense", "amount": 300, "category": "Food & Drinks", "date": "2026-11-05",
+	})
+	s = u.safeToSpend(t)
+	expectField(t, s, "payEstimated", false)
+	expectNumber(t, s, "spentSincePayday", 300)
+	expectNumber(t, s, "spendable", 1200)
+
+	// Paying a bill or moving money between counted wallets isn't spending.
+	u.must(t, 201, "POST", "/api/v1/bills/"+rent+"/pay", map[string]interface{}{"dueDate": "2026-11-10", "date": today})
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "transferAccountId": maya, "type": "transfer", "amount": 100, "date": "2026-11-06",
+	})
+	s = u.safeToSpend(t)
+	expectNumber(t, s, "billsThisPeriod", 3500)
+	expectNumber(t, s, "spentSincePayday", 300)
+	expectNumber(t, s, "spendable", 1200)
+
+	// Overtime is split: half to savings, half to spending.
+	u.transaction(t, map[string]interface{}{
+		"accountId": maya, "type": "income", "amount": 1000, "category": "Overtime", "date": "2026-11-06",
+	})
+	s = u.safeToSpend(t)
+	expectNumber(t, s, "extraIncome", 1000)
+	expectNumber(t, s, "extraSaved", 500)
+	expectNumber(t, s, "savingsTarget", 2500)
+	expectNumber(t, s, "spendingMoney", 2000)
+	expectNumber(t, s, "spendable", 1700)
+
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"extraToSavingsPercent": 0})
+	expectNumber(t, u.safeToSpend(t), "spendable", 2200)
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"extraToSavingsPercent": 100})
+	expectNumber(t, u.safeToSpend(t), "spendable", 1200)
+	u.must(t, 400, "PUT", "/api/v1/settings", map[string]interface{}{"extraToSavingsPercent": 30})
+
+	// Turning the salary off goes back to the balance-based amount.
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"salaryPerPayday": 0})
+	s = u.safeToSpend(t)
+	expectField(t, s, "mode", "balance")
+	expectNumber(t, s, "spendable", s["balanceLeft"].(float64))
+}
+
+func TestSalaryPlanLimitedByBalance(t *testing.T) {
+	e := setup(t)
+	u := newUser(t, e)
+	gcash := u.wallet(t, "GCash", true)
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "income", "amount": 500, "category": "Salary", "date": "2026-10-20",
+	})
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{
+		"paySchedule": "semi_monthly", "salaryPerPayday": 7000,
+	})
+	// Unpaid from before this period, so it comes out of this pay.
+	u.bill(t, "Water", 200, "2026-10-20", gcash)
+
+	s := u.safeToSpend(t)
+	expectNumber(t, s, "billsThisPeriod", 200)
+	expectNumber(t, s, "plannedLeft", 6800)
+	expectNumber(t, s, "balanceLeft", 300)
+	expectField(t, s, "limitedByBalance", true)
+	expectNumber(t, s, "spendable", 300)
+
+	u.must(t, 200, "DELETE", "/api/v1/auth/wipe-data", nil)
+	settings := dataOf(t, u.must(t, 200, "GET", "/api/v1/settings", nil))
+	expectNumber(t, settings, "salaryPerPayday", 0)
+	expectNumber(t, settings, "extraToSavingsPercent", 50)
+}
