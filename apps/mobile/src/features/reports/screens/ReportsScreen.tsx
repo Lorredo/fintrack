@@ -12,6 +12,7 @@ import type { MonthlyTrend, CategoryComparison } from '../types';
 import { formatCurrency, formatMonth, getCategoryColor, formatDateRange, getLocalISODate } from '@/shared/utils/categories';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useToast } from '@/features/toast/hooks/useToast';
+import { isOffline, OFFLINE_MESSAGE } from '@/shared/utils/apiErrors';
 
 export default function ReportsScreen() {
   const router = useRouter();
@@ -44,6 +45,10 @@ export default function ReportsScreen() {
 
   const handleExport = async (format: ExportFormat) => {
     if (exporting) return;
+    if (isOffline()) {
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     setExporting(format);
     try {
       const walletName = accounts?.find((account) => account.id === filters.accountId)?.name;
@@ -192,7 +197,7 @@ export default function ReportsScreen() {
           <View style={{ marginTop: 16 }}>
             {categoriesLoading ? (
               <Loader />
-            ) : categoriesError ? (
+            ) : categoriesError && !categories ? (
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <Text style={{ color: '#6B7280', marginBottom: 8 }}>Failed to load categories</Text>
                 <Button title="Retry" variant="outline" onPress={() => refetchCategories()} />
@@ -225,7 +230,7 @@ export default function ReportsScreen() {
           <View style={{ marginTop: 16 }}>
             {trendsLoading ? (
               <Loader />
-            ) : trendsError ? (
+            ) : trendsError && !trends ? (
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <Text style={{ color: '#6B7280', marginBottom: 8 }}>Failed to load trends</Text>
                 <Button title="Retry" variant="outline" onPress={() => refetchTrends()} />
@@ -245,7 +250,7 @@ export default function ReportsScreen() {
           <View style={{ marginTop: 16 }}>
             {trendsLoading ? (
               <Loader />
-            ) : trendsError ? (
+            ) : trendsError && !trends ? (
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <Text style={{ color: '#6B7280', marginBottom: 8 }}>Failed to load trends</Text>
                 <Button title="Retry" variant="outline" onPress={() => refetchTrends()} />

@@ -7,6 +7,7 @@ import { Screen, Input, Button, CategoryIcon } from '@/components/ui';
 import { useUIStore } from '@/shared/store/ui.store';
 import { useBudgetList, useRebalanceBudget } from '@/features/budgets/hooks/useBudgets';
 import { formatCurrency, getLocalISODate } from '@/shared/utils/categories';
+import { getErrorMessage } from '@/shared/utils/apiErrors';
 
 export default function RebalanceFormScreen() {
   const router = useRouter();
@@ -62,8 +63,8 @@ export default function RebalanceFormScreen() {
           Alert.alert('Success', 'Budgets rebalanced successfully!');
           handleCancel();
         },
-        onError: () => {
-          Alert.alert('Error', 'Failed to rebalance budgets. Please try again.');
+        onError: (err: unknown) => {
+          Alert.alert('Error', getErrorMessage(err) || 'Failed to rebalance budgets. Please try again.');
         }
       }
     );

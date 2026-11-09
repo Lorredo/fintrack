@@ -1,6 +1,7 @@
 import { AuthApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { storage, StorageKeys } from '@/lib/storage';
+import { clearUserCache } from '@/lib/queryClient';
 import { PinService } from './pin.service';
 import type {
   LoginRequest,
@@ -14,6 +15,12 @@ import type { User } from '../types/user.types';
 
 export class AuthService {
   private static handleAuthSuccess(response: LoginResponse) {
+    // Saved data belongs to whoever used the app last, so drop it when a
+    // different person signs in.
+    if (this.getSavedUserId() !== response.user.id) {
+      clearUserCache();
+    }
+
     storage.set(StorageKeys.ACCESS_TOKEN, response.tokens.accessToken);
     storage.set(StorageKeys.REFRESH_TOKEN, response.tokens.refreshToken);
     storage.set(StorageKeys.USER, JSON.stringify(response.user));
@@ -86,6 +93,7 @@ export class AuthService {
   private static clearLocalSession(clearDevicePin: boolean) {
     storage.remove(StorageKeys.ACCESS_TOKEN);
     storage.remove(StorageKeys.REFRESH_TOKEN);
+    clearUserCache();
 
     if (clearDevicePin) {
       storage.remove(StorageKeys.USER);
@@ -93,6 +101,16 @@ export class AuthService {
     }
 
     useAuthStore.getState().clearSession();
+  }
+
+  private static getSavedUserId(): string | undefined {
+    const savedUser = storage.get(StorageKeys.USER);
+    if (!savedUser) return undefined;
+    try {
+      return (JSON.parse(savedUser) as User).id;
+    } catch {
+      return undefined;
+    }
   }
 
   static getRememberedEmail(): string | undefined {

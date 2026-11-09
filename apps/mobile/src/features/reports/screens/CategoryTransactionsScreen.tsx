@@ -67,7 +67,7 @@ export default function CategoryTransactionsScreen() {
 
       {isLoading ? (
         <Loader />
-      ) : isError ? (
+      ) : isError && !data ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40 }}>
           <Text style={{ fontSize: 15, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
             Failed to load expenses

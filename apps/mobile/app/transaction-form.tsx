@@ -7,6 +7,8 @@ import TransactionForm from '@/features/transactions/components/TransactionForm'
 import { useCreateTransaction, useUpdateTransaction } from '@/features/transactions/hooks/useTransactions';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { CreateTransactionInput, UpdateTransactionInput } from '@/features/transactions/types';
+import { useToast } from '@/features/toast/hooks/useToast';
+import { getErrorMessage } from '@/shared/utils/apiErrors';
 
 export default function TransactionFormScreen() {
   const router = useRouter();
@@ -29,19 +31,25 @@ export default function TransactionFormScreen() {
     router.back();
   }, [router]);
 
+  const toast = useToast();
+
   const handleSubmit = useCallback(
     (data: CreateTransactionInput | UpdateTransactionInput) => {
+      // The form stays open with what was entered, so it can be saved again.
+      const onError = (err: unknown) => toast.error(getErrorMessage(err) || "Couldn't save the transaction");
       if ('id' in data) {
         updateMutation.mutate(data as UpdateTransactionInput, {
           onSuccess: handleClose,
+          onError,
         });
       } else {
         createMutation.mutate(data as CreateTransactionInput, {
           onSuccess: handleClose,
+          onError,
         });
       }
     },
-    [createMutation, updateMutation, handleClose]
+    [createMutation, updateMutation, handleClose, toast]
   );
 
   const getTitle = () => {

@@ -1,6 +1,7 @@
 import { router } from "expo-router";
 
 import { api } from "./api";
+import { clearUserCache } from "./queryClient";
 
 import {
   storage,
@@ -63,42 +64,7 @@ if(interceptorInitialized){
 
 interceptorInitialized=true;
 
-/*
- REQUEST
- Attach access token
-*/
-
-api.interceptors.request.use(
-(config)=>{
-
-
-const token =
-storage.get(
- StorageKeys.ACCESS_TOKEN
-);
-
-
-
-if(token){
-
- config.headers.Authorization =
- `Bearer ${token}`;
-
-}
-
-
-
-return config;
-
-},
-
-
-(error)=>Promise.reject(error)
-
-);
-
-
-
+// The access token is attached by the request interceptor in api.ts.
 
 
 /*
@@ -123,10 +89,12 @@ error.config;
 
 // Their 401s mean wrong credentials, not an expired access token.
 const isAuthEndpoint = TOKENLESS_ENDPOINTS.some(
-  (endpoint) => originalRequest.url?.endsWith(endpoint),
+  (endpoint) => originalRequest?.url?.endsWith(endpoint),
 );
 
+// Requests stopped before sending (offline) have no config to retry.
 if(
+ !originalRequest ||
  error.response?.status !== 401 ||
  originalRequest._retry ||
  isAuthEndpoint
@@ -272,6 +240,7 @@ if(!sessionEnded){
 // Only clear session tokens, do NOT wipe user device PIN and settings
 storage.remove(StorageKeys.ACCESS_TOKEN);
 storage.remove(StorageKeys.REFRESH_TOKEN);
+clearUserCache();
 
 
 useAuthStore

@@ -1,4 +1,11 @@
 import type { AxiosError } from 'axios';
+import { onlineManager } from '@tanstack/react-query';
+
+export const OFFLINE_MESSAGE = "You're offline. Connect to the internet and try again.";
+
+export function isOffline(): boolean {
+  return !onlineManager.isOnline();
+}
 
 export interface ApiError {
   status: number | null;
@@ -57,7 +64,7 @@ export function parseApiError(error: unknown): ApiError {
 
   return {
     status: null,
-    message: 'Network error. Please check your connection.',
+    message: isOffline() ? OFFLINE_MESSAGE : 'Network error. Please check your connection.',
   };
 }
 

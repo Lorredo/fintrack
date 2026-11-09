@@ -3,6 +3,8 @@ import { View, ViewProps, ScrollView, RefreshControl, Platform, KeyboardAvoiding
 import { useSegments } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ConnectionBanner } from '../ConnectionBanner';
+
 interface ScreenProps extends ViewProps {
   children: ReactNode;
   scrollable?: boolean;
@@ -33,6 +35,7 @@ export function Screen({
         style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
+        <ConnectionBanner />
         <ScrollView
           className={`flex-1 px-5 ${className}`}
           contentContainerStyle={{ paddingBottom: (floatingComponent ? 100 : 40) + paddingBottom }}
@@ -56,6 +59,7 @@ export function Screen({
       style={{ flex: 1, backgroundColor: '#F5F7FA', paddingTop, paddingBottom }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <ConnectionBanner />
       <View className={`flex-1 px-5 ${className}`} {...props}>
         {children}
       </View>

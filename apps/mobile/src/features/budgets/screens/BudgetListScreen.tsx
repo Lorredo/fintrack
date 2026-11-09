@@ -85,7 +85,7 @@ export default function BudgetListScreen() {
     );
   }
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center">

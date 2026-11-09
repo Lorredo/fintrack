@@ -64,4 +64,5 @@ export const StorageKeys = {
   PIN_SETUP_DISMISSED: 'pin_setup_dismissed',
   RECENT_GOOGLE_ACCOUNTS: 'recent_google_accounts',
   AUTO_LOCK_TIMEOUT: 'FINTRACK_AUTOLOCK_TIMEOUT',
+  QUERY_CACHE: 'query_cache',
 } as const;

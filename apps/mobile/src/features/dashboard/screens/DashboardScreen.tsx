@@ -28,7 +28,7 @@ export default function DashboardScreen() {
   const { data: accounts } = useAccounts();
   const { data: currentUser } = useCurrentUser();
   const month = getLocalISODate().slice(0, 7);
-  const { data, isLoading, isError, refetch, isRefetching } = useDashboardSummary(month, undefined);
+  const { data, isError, refetch, isRefetching } = useDashboardSummary(month, undefined);
 
   // Sync data to native storage bridge for Home Screen Widgets
   useEffect(() => {
@@ -51,15 +51,7 @@ export default function DashboardScreen() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <Screen>
-        <Loader />
-      </Screen>
-    );
-  }
-
-  if (isError) {
+  if (isError && !data) {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center p-4">
@@ -70,7 +62,17 @@ export default function DashboardScreen() {
     );
   }
 
-  const summary = data!;
+  // Also covers being offline with nothing saved yet, when the request waits
+  // for the connection instead of loading.
+  if (!data) {
+    return (
+      <Screen>
+        <Loader />
+      </Screen>
+    );
+  }
+
+  const summary = data;
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'there';
 
   return (

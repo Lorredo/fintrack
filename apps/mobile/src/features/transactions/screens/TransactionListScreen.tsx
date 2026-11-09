@@ -219,7 +219,7 @@ export default function TransactionListScreen() {
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
             <Loader />
           </View>
-        ) : isError ? (
+        ) : isError && !data ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 }}>
             <Text style={{ fontSize: 15, color: '#6B7280', marginBottom: 12, textAlign: 'center' }}>
               Failed to load transactions
@@ -382,7 +382,7 @@ export default function TransactionListScreen() {
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#111827', marginBottom: 12 }}>Category</Text>
             {categoriesLoading ? (
               <Text style={{ fontSize: 13, color: '#6B7280' }}>Loading categories...</Text>
-            ) : categoriesError ? (
+            ) : categoriesError && !userCategories ? (
               <Text style={{ fontSize: 13, color: '#EF4444' }}>Error: Did you restart the Go API?</Text>
             ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

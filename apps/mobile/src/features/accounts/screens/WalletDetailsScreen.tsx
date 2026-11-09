@@ -137,7 +137,7 @@ export default function WalletDetailsScreen() {
         ListEmptyComponent={
           isLoading ? (
             <Loader />
-          ) : isError ? (
+          ) : isError && !data ? (
             <View style={{ alignItems: 'center', paddingVertical: 32 }}>
               <Text style={{ fontSize: 15, color: '#6B7280', marginBottom: 12 }}>Failed to load transactions</Text>
               <Button title="Retry" onPress={() => refetch()} />

@@ -7,6 +7,7 @@ import BudgetForm from '@/features/budgets/components/BudgetForm';
 import { useCreateBudget, useUpdateBudget } from '@/features/budgets/hooks/useBudgets';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { CreateBudgetInput, UpdateBudgetInput } from '@/features/budgets/types';
+import { getErrorMessage } from '@/shared/utils/apiErrors';
 
 export default function BudgetFormScreen() {
   const router = useRouter();
@@ -24,9 +25,8 @@ export default function BudgetFormScreen() {
 
   const handleSubmit = useCallback(
     (data: CreateBudgetInput | UpdateBudgetInput) => {
-      const onError = (error: any) => {
-        const message = error.response?.data?.message || 'Failed to save budget';
-        Alert.alert('Error', message);
+      const onError = (error: unknown) => {
+        Alert.alert('Error', getErrorMessage(error) || 'Failed to save budget');
       };
 
       if ('id' in data) {
