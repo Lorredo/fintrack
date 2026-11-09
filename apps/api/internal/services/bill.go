@@ -559,8 +559,8 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	err = s.db.QueryRow(ctx, `
 		SELECT COALESCE(SUM(
 			CASE
-				WHEN t.type IN ('income', 'adjust_in') AND t.account_id = a.id THEN t.amount
-				WHEN t.type IN ('expense', 'adjust_out') AND t.account_id = a.id THEN -t.amount
+				WHEN t.type IN ('income', 'adjust_in', 'loan_in') AND t.account_id = a.id THEN t.amount
+				WHEN t.type IN ('expense', 'adjust_out', 'loan_out') AND t.account_id = a.id THEN -t.amount
 				WHEN t.type = 'transfer' AND t.account_id = a.id THEN -t.amount
 				WHEN t.type = 'transfer' AND t.transfer_account_id = a.id THEN t.amount
 				ELSE 0
@@ -624,6 +624,20 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// Paluwagan contributions and utang the user owes are set aside like bills.
+	unpaidCommitments, periodCommitments, err := commitmentsForPeriod(ctx, s.db, userID, period, today)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range unpaidCommitments {
+		result.Bills = append(result.Bills, item)
+		result.BillsReserved += item.Amount
+	}
+	for _, item := range periodCommitments {
+		result.PeriodBills = append(result.PeriodBills, item)
+		result.BillsThisPeriod += item.Amount
+	}
+
 	sort.SliceStable(result.Bills, func(i, j int) bool { return result.Bills[i].DueDate < result.Bills[j].DueDate })
 	sort.SliceStable(result.PeriodBills, func(i, j int) bool { return result.PeriodBills[i].DueDate < result.PeriodBills[j].DueDate })
 

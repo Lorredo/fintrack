@@ -99,8 +99,8 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 			`SELECT COALESCE(
 				SUM(
 					CASE 
-						WHEN type IN ('income', 'adjust_in') AND account_id = $2 THEN amount 
-						WHEN type IN ('expense', 'adjust_out') AND account_id = $2 THEN -amount 
+						WHEN type IN ('income', 'adjust_in', 'loan_in') AND account_id = $2 THEN amount 
+						WHEN type IN ('expense', 'adjust_out', 'loan_out') AND account_id = $2 THEN -amount 
 						WHEN type = 'transfer' AND account_id = $2 THEN -amount 
 						WHEN type = 'transfer' AND transfer_account_id = $2 THEN amount 
 						ELSE 0 
@@ -113,8 +113,8 @@ func (s *DashboardService) GetSummary(ctx context.Context, userID, month, accoun
 			`SELECT COALESCE(
 				SUM(
 					CASE 
-						WHEN type IN ('income', 'adjust_in') THEN amount 
-						WHEN type IN ('expense', 'adjust_out') THEN -amount 
+						WHEN type IN ('income', 'adjust_in', 'loan_in') THEN amount 
+						WHEN type IN ('expense', 'adjust_out', 'loan_out') THEN -amount 
 						ELSE 0 
 					END
 				), 0)

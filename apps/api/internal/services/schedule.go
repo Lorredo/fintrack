@@ -152,3 +152,33 @@ func RegularIncomeInPeriod(incomes []models.RegularIncome, period PayPeriod) []m
 	}
 	return expected
 }
+
+// PaluwaganRoundDate is the date of round n (1-based). Monthly rounds keep the
+// start day like bills; semi-monthly rounds alternate between the 15th and
+// the 30th (the month's last day in February), starting from the start date.
+func PaluwaganRoundDate(start time.Time, frequency string, round int) time.Time {
+	n := round - 1
+	switch frequency {
+	case models.PaluwaganWeekly:
+		return start.AddDate(0, 0, 7*n)
+	case models.PaluwaganSemiMonthly:
+		date := start
+		for i := 0; i < n; i++ {
+			date = nextSemiMonthlyPayday(date)
+		}
+		return date
+	default:
+		return Occurrence(start, FrequencyMonthly, n)
+	}
+}
+
+// nextSemiMonthlyPayday is the first 15th or 30th after date.
+func nextSemiMonthlyPayday(date time.Time) time.Time {
+	this := semiMonthlyPaydays(date.Year(), date.Month())
+	for _, payday := range this {
+		if payday.After(date) {
+			return payday
+		}
+	}
+	return semiMonthlyPaydays(date.Year(), date.Month()+1)[0]
+}

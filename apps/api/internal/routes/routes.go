@@ -11,7 +11,7 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/middleware"
 )
 
-func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler, billHandler *handlers.BillHandler) {
+func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler, billHandler *handlers.BillHandler, utangHandler *handlers.UtangHandler) {
 	api := app.Group("/api/v1")
 	authRequired := middleware.AuthRequired(jwtSecret)
 
@@ -65,6 +65,24 @@ func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, 
 	bills.Delete("/:id", billHandler.Delete)
 	bills.Post("/:id/pay", billHandler.Pay)
 	bills.Post("/:id/skip", billHandler.Skip)
+
+	// Utang (protected)
+	debts := api.Group("/debts", authRequired)
+	debts.Get("/", utangHandler.ListDebts)
+	debts.Post("/", utangHandler.CreateDebt)
+	debts.Put("/:id", utangHandler.UpdateDebt)
+	debts.Delete("/:id", utangHandler.DeleteDebt)
+	debts.Post("/:id/payments", utangHandler.AddDebtPayment)
+	debts.Delete("/:id/payments/:paymentId", utangHandler.DeleteDebtPayment)
+
+	// Paluwagan (protected)
+	paluwagans := api.Group("/paluwagans", authRequired)
+	paluwagans.Get("/", utangHandler.ListPaluwagans)
+	paluwagans.Post("/", utangHandler.CreatePaluwagan)
+	paluwagans.Put("/:id", utangHandler.UpdatePaluwagan)
+	paluwagans.Delete("/:id", utangHandler.DeletePaluwagan)
+	paluwagans.Post("/:id/contribute", utangHandler.Contribute)
+	paluwagans.Post("/:id/payout", utangHandler.ReceivePayout)
 
 	// Payday and savings settings (protected)
 	settings := api.Group("/settings", authRequired)

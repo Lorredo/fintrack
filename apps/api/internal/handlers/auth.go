@@ -457,6 +457,19 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 
 	// Delete in reverse order of dependency. Bills go first; their payments
 	// go with them.
+	// Utang and paluwagan go too; their payments go with them.
+	if _, err := tx.Exec(ctx, `DELETE FROM debts WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete utang",
+		})
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM paluwagans WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete paluwagan",
+		})
+	}
+
 	if _, err := tx.Exec(ctx, `DELETE FROM bills WHERE user_id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to delete bills",

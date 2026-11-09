@@ -12,6 +12,10 @@ const (
 	// Adjustments correct a wallet's balance without counting as income or
 	// spending. They are created by POST /accounts/:id/balance only.
 	TransactionTypeAdjustIn  TransactionType = "adjust_in"
+	// Utang and paluwagan money moving in or out of a wallet. Like
+	// adjustments, they change balances but aren't income or expenses.
+	TransactionTypeLoanIn  TransactionType = "loan_in"
+	TransactionTypeLoanOut TransactionType = "loan_out"
 	TransactionTypeAdjustOut TransactionType = "adjust_out"
 )
 

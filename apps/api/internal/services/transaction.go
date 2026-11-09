@@ -149,13 +149,13 @@ func CreateTransaction(ctx context.Context, q database.Querier, userID string, r
 		return nil, fmt.Errorf("only transfers can have a fee")
 	}
 
-	if req.Type == "expense" || req.Type == "transfer" {
+	if req.Type == models.TransactionTypeExpense || req.Type == models.TransactionTypeTransfer || req.Type == models.TransactionTypeLoanOut {
 		var balance float64
 		err := q.QueryRow(ctx, `
 			SELECT COALESCE(SUM(
 				CASE 
-					WHEN type IN ('income', 'adjust_in') AND account_id = $2 THEN amount 
-					WHEN type IN ('expense', 'adjust_out') AND account_id = $2 THEN -amount 
+					WHEN type IN ('income', 'adjust_in', 'loan_in') AND account_id = $2 THEN amount 
+					WHEN type IN ('expense', 'adjust_out', 'loan_out') AND account_id = $2 THEN -amount 
 					WHEN type = 'transfer' AND account_id = $2 THEN -amount 
 					WHEN type = 'transfer' AND transfer_account_id = $2 THEN amount 
 					ELSE 0 

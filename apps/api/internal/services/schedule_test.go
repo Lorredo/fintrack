@@ -151,3 +151,28 @@ func TestRegularIncomeInPeriod(t *testing.T) {
 		t.Errorf("whole month: got %+v", got)
 	}
 }
+
+func TestPaluwaganRoundDate(t *testing.T) {
+	cases := []struct {
+		name, start, frequency string
+		round                  int
+		want                   string
+	}{
+		{"weekly round 1", "2026-11-06", models.PaluwaganWeekly, 1, "2026-11-06"},
+		{"weekly round 3", "2026-11-06", models.PaluwaganWeekly, 3, "2026-11-20"},
+		{"monthly on the 31st", "2026-01-31", models.PaluwaganMonthly, 2, "2026-02-28"},
+		{"monthly back to the 31st", "2026-01-31", models.PaluwaganMonthly, 3, "2026-03-31"},
+		{"semi-monthly from the 15th", "2026-11-15", models.PaluwaganSemiMonthly, 2, "2026-11-30"},
+		{"semi-monthly into December", "2026-11-15", models.PaluwaganSemiMonthly, 3, "2026-12-15"},
+		{"semi-monthly through February", "2027-02-15", models.PaluwaganSemiMonthly, 2, "2027-02-28"},
+		{"semi-monthly after February", "2027-02-15", models.PaluwaganSemiMonthly, 3, "2027-03-15"},
+		{"semi-monthly from the 30th", "2026-11-30", models.PaluwaganSemiMonthly, 2, "2026-12-15"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := FormatDay(PaluwaganRoundDate(mustDay(t, tc.start), tc.frequency, tc.round)); got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}

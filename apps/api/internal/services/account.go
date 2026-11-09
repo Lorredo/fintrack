@@ -31,8 +31,8 @@ func (s *AccountService) List(ctx context.Context, userID string) ([]models.Acco
 			COALESCE(
 				SUM(
 					CASE 
-						WHEN t.type IN ('income', 'adjust_in') AND t.account_id = a.id THEN t.amount 
-						WHEN t.type IN ('expense', 'adjust_out') AND t.account_id = a.id THEN -t.amount 
+						WHEN t.type IN ('income', 'adjust_in', 'loan_in') AND t.account_id = a.id THEN t.amount 
+						WHEN t.type IN ('expense', 'adjust_out', 'loan_out') AND t.account_id = a.id THEN -t.amount 
 						WHEN t.type = 'transfer' AND t.account_id = a.id THEN -t.amount 
 						WHEN t.type = 'transfer' AND t.transfer_account_id = a.id THEN t.amount 
 						ELSE 0 
@@ -86,8 +86,8 @@ func (s *AccountService) SetBalance(ctx context.Context, id, userID string, req 
 		SELECT COALESCE(
 			SUM(
 				CASE
-					WHEN t.type IN ('income', 'adjust_in') AND t.account_id = a.id THEN t.amount
-					WHEN t.type IN ('expense', 'adjust_out') AND t.account_id = a.id THEN -t.amount
+					WHEN t.type IN ('income', 'adjust_in', 'loan_in') AND t.account_id = a.id THEN t.amount
+					WHEN t.type IN ('expense', 'adjust_out', 'loan_out') AND t.account_id = a.id THEN -t.amount
 					WHEN t.type = 'transfer' AND t.account_id = a.id THEN -t.amount
 					WHEN t.type = 'transfer' AND t.transfer_account_id = a.id THEN t.amount
 					ELSE 0
