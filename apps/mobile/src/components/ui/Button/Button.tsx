@@ -50,7 +50,7 @@ export default function Button({
   return (
     <Pressable
       disabled={disabled || loading}
-      className={`py-[15px] rounded-xl items-center justify-center flex-row gap-sm active:opacity-75 ${variantClasses[variant]} ${disabled ? "opacity-50" : ""}`}
+      className={`py-[15px] px-[24px] rounded-xl items-center justify-center flex-row gap-sm active:opacity-75 ${variantClasses[variant]} ${disabled ? "opacity-50" : ""}`}
       style={[isPrimary && !disabled ? shadowStyle : undefined, style]}
       {...props}
     >

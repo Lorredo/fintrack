@@ -407,3 +407,103 @@ func TestSalaryPlanLimitedByBalance(t *testing.T) {
 	expectNumber(t, settings, "salaryPerPayday", 0)
 	expectNumber(t, settings, "extraToSavingsPercent", 50)
 }
+
+func TestRegularIncomeIsExpectedPay(t *testing.T) {
+	e := setup(t)
+	u := newUser(t, e)
+	gcash := u.wallet(t, "GCash", true)
+	// Old money, so the balance limit doesn't get in the way.
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "income", "amount": 50000, "category": "Salary", "date": "2026-10-01",
+	})
+
+	settings := dataOf(t, u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{
+		"paySchedule": "semi_monthly", "salaryPerPayday": 7000, "savingsPerPayday": 2000,
+		"regularIncomes": []map[string]interface{}{
+			{"name": "Augmentation", "amount": 2000, "kind": "weekday", "nth": 1, "weekday": 5},
+			{"name": "Rice allowance", "amount": 1500, "kind": "day", "day": 15},
+		},
+	}))
+	if items := settings["regularIncomes"].([]interface{}); len(items) != 2 {
+		t.Fatalf("regularIncomes = %v", settings["regularIncomes"])
+	}
+
+	// Oct 30 to Nov 14: augmentation (first Friday, Nov 6) is in, rice allowance isn't.
+	s := u.safeToSpend(t)
+	expectNumber(t, s, "expectedPay", 9000)
+	expectField(t, s, "payEstimated", true)
+	if income := s["regularIncome"].([]interface{}); len(income) != 1 ||
+		income[0].(map[string]interface{})["date"] != "2026-11-06" {
+		t.Errorf("regularIncome = %v", s["regularIncome"])
+	}
+	expectNumber(t, s, "spendingMoney", 7000) // 9,000 − 2,000 savings
+
+	// Recording salary and augmentation is expected pay, not extra.
+	for _, amount := range []float64{7000, 2000} {
+		u.transaction(t, map[string]interface{}{
+			"accountId": gcash, "type": "income", "amount": amount, "category": "Salary", "date": "2026-11-06",
+		})
+	}
+	s = u.safeToSpend(t)
+	expectField(t, s, "payEstimated", false)
+	expectNumber(t, s, "extraIncome", 0)
+	expectNumber(t, s, "extraSaved", 0)
+	expectNumber(t, s, "spendingMoney", 7000)
+
+	// Only income above salary and allowances is split.
+	u.transaction(t, map[string]interface{}{
+		"accountId": gcash, "type": "income", "amount": 1000, "category": "Overtime", "date": "2026-11-07",
+	})
+	s = u.safeToSpend(t)
+	expectNumber(t, s, "extraIncome", 1000)
+	expectNumber(t, s, "extraSaved", 500)
+	expectNumber(t, s, "spendingMoney", 7500)
+
+	// The next pay period has the rice allowance instead.
+	next := dataOf(t, u.must(t, 200, "GET", "/api/v1/dashboard/safe-to-spend?today=2026-11-20", nil))
+	expectNumber(t, next, "expectedPay", 8500)
+	if income := next["regularIncome"].([]interface{}); len(income) != 1 ||
+		income[0].(map[string]interface{})["name"] != "Rice allowance" {
+		t.Errorf("next period regularIncome = %v", next["regularIncome"])
+	}
+
+	// Leaving the list out keeps it; an empty list clears it.
+	kept := dataOf(t, u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"savingsPerPayday": 1000}))
+	if items := kept["regularIncomes"].([]interface{}); len(items) != 2 {
+		t.Errorf("regularIncomes changed: %v", kept["regularIncomes"])
+	}
+	cleared := dataOf(t, u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"regularIncomes": []interface{}{}}))
+	if items := cleared["regularIncomes"].([]interface{}); len(items) != 0 {
+		t.Errorf("regularIncomes not cleared: %v", cleared["regularIncomes"])
+	}
+}
+
+func TestRegularIncomeValidation(t *testing.T) {
+	e := setup(t)
+	u := newUser(t, e)
+	bad := []map[string]interface{}{
+		{"name": "X", "amount": 100, "kind": "weekday", "nth": 1, "weekday": 9},
+		{"name": "X", "amount": 100, "kind": "weekday", "nth": 0, "weekday": 5},
+		{"name": "X", "amount": 100, "kind": "day", "day": 0},
+		{"name": "X", "amount": 0, "kind": "day", "day": 15},
+		{"name": "", "amount": 100, "kind": "day", "day": 15},
+		{"name": "X", "amount": 100, "kind": "yearly", "day": 15},
+	}
+	for _, item := range bad {
+		u.must(t, 400, "PUT", "/api/v1/settings", map[string]interface{}{"regularIncomes": []interface{}{item}})
+	}
+	tooMany := make([]interface{}, 11)
+	for i := range tooMany {
+		tooMany[i] = map[string]interface{}{"name": "X", "amount": 100, "kind": "day", "day": 15}
+	}
+	u.must(t, 400, "PUT", "/api/v1/settings", map[string]interface{}{"regularIncomes": tooMany})
+
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{
+		"regularIncomes": []interface{}{map[string]interface{}{"name": "Rice", "amount": 100, "kind": "day", "day": 15}},
+	})
+	u.must(t, 200, "DELETE", "/api/v1/auth/wipe-data", nil)
+	settings := dataOf(t, u.must(t, 200, "GET", "/api/v1/settings", nil))
+	if items := settings["regularIncomes"].([]interface{}); len(items) != 0 {
+		t.Errorf("wipe left regularIncomes: %v", settings["regularIncomes"])
+	}
+}

@@ -71,8 +71,21 @@ function SalaryBreakdown({ safe }: { safe: SafeToSpend }) {
       <Text style={{ fontSize: 13, fontWeight: '600', color: '#6B7280', marginBottom: 4 }}>
         This pay period · {formatShortDate(safe.periodStart)} to {formatShortDate(safe.nextPayday)}
       </Text>
-      <BreakdownLine label={safe.payEstimated ? 'Expected salary (not recorded yet)' : 'Salary'} value={safe.salary} />
-      {safe.extraIncome > 0 && <BreakdownLine label="Overtime and other income" value={safe.extraIncome} />}
+      {safe.salary > 0 && <BreakdownLine label="Salary" value={safe.salary} />}
+      {(safe.regularIncome ?? []).map((income) => (
+        <BreakdownLine
+          key={`${income.name}-${income.date}`}
+          label={`${income.name} · ${formatShortDate(income.date)}`}
+          value={income.amount}
+        />
+      ))}
+      {safe.payEstimated && (
+        <Text style={{ fontSize: 12, color: '#B45309', paddingBottom: 4 }}>
+          Expected: {formatCurrency(safe.expectedPay ?? safe.salary)}, recorded so far {formatCurrency(safe.incomeRecorded)}.
+          Record each one as income when it arrives.
+        </Text>
+      )}
+      {safe.extraIncome > 0 && <BreakdownLine label="Extra income (overtime, bonus)" value={safe.extraIncome} />}
       <BillLines bills={safe.periodBills} />
       {savingsPerPayday > 0 && <BreakdownLine label="Savings" value={savingsPerPayday} minus />}
       {safe.extraSaved > 0 && <BreakdownLine label="Saved from extra income" value={safe.extraSaved} minus />}
@@ -141,7 +154,7 @@ export function SafeToSpendCard() {
   const note = safe.limitedByBalance
     ? 'Limited by your wallet balance'
     : safe.mode === 'salary' && safe.payEstimated
-      ? 'Using your expected salary until you record it'
+      ? 'Using your expected pay until you record it'
       : null;
 
   return (

@@ -69,6 +69,31 @@ type SkipBillRequest struct {
 	DueDate string `json:"dueDate" validate:"required,datetime=2006-01-02"`
 }
 
+const (
+	RegularIncomeByDay     = "day"
+	RegularIncomeByWeekday = "weekday"
+)
+
+// RegularIncome is pay besides the salary that arrives every month, such as
+// an allowance. It counts as expected pay, like the salary, not as extra.
+type RegularIncome struct {
+	Name   string  `json:"name" validate:"required,max=50"`
+	Amount float64 `json:"amount" validate:"required,gt=0"`
+	// "day": on day Day of the month. "weekday": on the Nth Weekday of the
+	// month, where Nth 5 means the last one and Weekday 0 is Sunday.
+	Kind    string `json:"kind" validate:"required,oneof=day weekday"`
+	Day     int    `json:"day,omitempty" validate:"min=0,max=31"`
+	Nth     int    `json:"nth,omitempty" validate:"min=0,max=5"`
+	Weekday int    `json:"weekday" validate:"min=0,max=6"`
+}
+
+// ExpectedIncome is one regular income due in the current pay period.
+type ExpectedIncome struct {
+	Name   string  `json:"name"`
+	Amount float64 `json:"amount"`
+	Date   string  `json:"date"`
+}
+
 type PaySettings struct {
 	// Null until the user sets a payday.
 	PaySchedule      *string `json:"paySchedule"`
@@ -77,7 +102,8 @@ type PaySettings struct {
 	// 0 keeps Safe to Spend based on wallet balances only.
 	SalaryPerPayday float64 `json:"salaryPerPayday"`
 	// Share of income above the salary (overtime, bonuses) that goes to savings.
-	ExtraToSavingsPercent int `json:"extraToSavingsPercent"`
+	ExtraToSavingsPercent int             `json:"extraToSavingsPercent"`
+	RegularIncomes        []RegularIncome `json:"regularIncomes"`
 }
 
 type UpdatePaySettingsRequest struct {
@@ -87,6 +113,8 @@ type UpdatePaySettingsRequest struct {
 	SalaryPerPayday  *float64 `json:"salaryPerPayday,omitempty" validate:"omitempty,gte=0"`
 	// Pointer so 0 ("spend it all") is accepted.
 	ExtraToSavingsPercent *int `json:"extraToSavingsPercent,omitempty" validate:"omitempty,oneof=0 50 100"`
+	// The whole list; an empty list removes them all.
+	RegularIncomes *[]RegularIncome `json:"regularIncomes,omitempty" validate:"omitempty,max=10,dive"`
 }
 
 type ReservedBill struct {
@@ -123,14 +151,17 @@ type SafeToSpend struct {
 	Salary         float64 `json:"salary"`
 	IncomeRecorded float64 `json:"incomeRecorded"`
 	// True until the salary has been recorded as income this period.
-	PayEstimated     bool           `json:"payEstimated"`
-	Pay              float64        `json:"pay"`
-	ExtraIncome      float64        `json:"extraIncome"`
-	ExtraSaved       float64        `json:"extraSaved"`
-	BillsThisPeriod  float64        `json:"billsThisPeriod"`
-	PeriodBills      []ReservedBill `json:"periodBills"`
-	SpendingMoney    float64        `json:"spendingMoney"`
-	SpentSincePayday float64        `json:"spentSincePayday"`
-	PlannedLeft      float64        `json:"plannedLeft"`
-	PeriodStart      string         `json:"periodStart"`
+	PayEstimated bool `json:"payEstimated"`
+	// Salary plus the regular income due this period.
+	ExpectedPay      float64          `json:"expectedPay"`
+	RegularIncome    []ExpectedIncome `json:"regularIncome"`
+	Pay              float64          `json:"pay"`
+	ExtraIncome      float64          `json:"extraIncome"`
+	ExtraSaved       float64          `json:"extraSaved"`
+	BillsThisPeriod  float64          `json:"billsThisPeriod"`
+	PeriodBills      []ReservedBill   `json:"periodBills"`
+	SpendingMoney    float64          `json:"spendingMoney"`
+	SpentSincePayday float64          `json:"spentSincePayday"`
+	PlannedLeft      float64          `json:"plannedLeft"`
+	PeriodStart      string           `json:"periodStart"`
 }

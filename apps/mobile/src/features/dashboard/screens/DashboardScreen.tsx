@@ -22,6 +22,19 @@ const { width } = Dimensions.get('window');
 
 const WALLET_COLORS = ['#2563EB', '#7C3AED', '#059669', '#DC2626', '#D97706', '#4F46E5'];
 
+const QUICK_ACTIONS: {
+  label: string;
+  icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+  color: string;
+  route: string | { pathname: string; params: Record<string, string> };
+}[] = [
+  { label: 'Transfer', icon: 'swap-horizontal', color: '#4F46E5', route: { pathname: '/transaction-form', params: { type: 'transfer' } } },
+  { label: 'Budget', icon: 'target', color: '#7C3AED', route: '/budgets' },
+  { label: 'Wallets', icon: 'bank-outline', color: '#059669', route: '/accounts' },
+  { label: 'Bills', icon: 'receipt', color: '#DC2626', route: '/bills' },
+  { label: 'Payday', icon: 'calendar-month-outline', color: '#D97706', route: '/pay-settings' },
+];
+
 export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -203,37 +216,23 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Quick Actions Row */}
-        <View style={{ flexDirection: 'row', justifyContent: 'flex-start', gap: 24, marginTop: 24, marginBottom: 8 }}>
-          <Pressable
-            onPress={() => router.push({ pathname: '/transaction-form', params: { type: 'transfer' } })}
-            style={{ alignItems: 'center', gap: 8 }}
-          >
-            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
-              <MaterialCommunityIcons name="swap-horizontal" size={28} color="#4F46E5" />
-            </View>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Transfer</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/budgets')}
-            style={{ alignItems: 'center', gap: 8 }}
-          >
-            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
-              <MaterialCommunityIcons name="target" size={28} color="#7C3AED" />
-            </View>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Budget</Text>
-          </Pressable>
-          
-          <Pressable
-            onPress={() => router.push('/accounts')}
-            style={{ alignItems: 'center', gap: 8 }}
-          >
-            <View style={{ width: 60, height: 60, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
-              <MaterialCommunityIcons name="bank-outline" size={28} color="#059669" />
-            </View>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>Wallets</Text>
-          </Pressable>
+        {/* Quick Actions Row: each action takes an equal share, so five fit on a phone. */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, marginBottom: 8 }}>
+          {QUICK_ACTIONS.map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={() => router.push(action.route as any)}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+              className="active:opacity-70"
+              style={{ flex: 1, alignItems: 'center', gap: 8 }}
+            >
+              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
+                <MaterialCommunityIcons name={action.icon} size={26} color={action.color} />
+              </View>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }} numberOfLines={1}>{action.label}</Text>
+            </Pressable>
+          ))}
         </View>
       </View>
 

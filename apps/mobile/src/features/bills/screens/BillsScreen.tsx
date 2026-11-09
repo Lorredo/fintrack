@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, SectionList, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, EmptyState, Loader, Screen } from '@/components/ui';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
@@ -17,6 +18,41 @@ export const PAY_SCHEDULE_LABELS = {
   semi_monthly: '15th and 30th',
   irregular: 'Irregular (end of month)',
 } as const;
+
+function AddBillButton({ onPress }: { onPress: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Add bill"
+      className="active:opacity-80"
+      style={{
+        position: 'absolute',
+        right: 20,
+        // Absolute children sit over the screen's bottom padding, so clear
+        // the system navigation bar explicitly.
+        bottom: 20 + insets.bottom,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#2563EB',
+        borderRadius: 999,
+        paddingLeft: 22,
+        paddingRight: 28,
+        paddingVertical: 16,
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 6,
+      }}
+    >
+      <MaterialCommunityIcons name="plus" size={22} color="#FFFFFF" />
+      <Text style={{ fontSize: 15, lineHeight: 20, fontWeight: '700', color: '#FFFFFF' }}>Add Bill</Text>
+    </Pressable>
+  );
+}
 
 export default function BillsScreen() {
   const router = useRouter();
@@ -59,15 +95,6 @@ export default function BillsScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#111827" />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: '#111827' }}>Bills</Text>
-        <Pressable
-          onPress={() => setIsAdding(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Add bill"
-          hitSlop={8}
-          className="bg-primary/10 p-sm rounded-full"
-        >
-          <MaterialCommunityIcons name="plus" size={22} color="#2563EB" />
-        </Pressable>
       </View>
 
       <Pressable
@@ -111,7 +138,8 @@ export default function BillsScreen() {
           showsVerticalScrollIndicator={false}
           refreshing={isRefetching}
           onRefresh={refetch}
-          contentContainerStyle={{ paddingBottom: 40 }}
+          // Room for the Add Bill button over the last row.
+          contentContainerStyle={{ paddingBottom: 110 }}
           renderSectionHeader={({ section }) => (
             <Text style={{ fontSize: 14, fontWeight: '600', color: '#4B5563', marginTop: 14, marginBottom: 8 }}>
               {section.title}
@@ -126,11 +154,13 @@ export default function BillsScreen() {
             <EmptyState
               title="No bills yet"
               description="Add bills like electricity, internet or rent. FinTrack reminds you before they're due and sets the money aside in Safe to Spend."
-              action={<Button title="Add a Bill" onPress={() => setIsAdding(true)} />}
+              action={<Button title="Add Your First Bill" icon="plus" onPress={() => setIsAdding(true)} />}
             />
           }
         />
       )}
+
+      {bills && bills.length > 0 && <AddBillButton onPress={() => setIsAdding(true)} />}
 
       <BillFormModal visible={isAdding || editing !== null} bill={editing} onClose={() => { setIsAdding(false); setEditing(null); }} />
       <MarkPaidModal bill={paying} onClose={() => setPaying(null)} />

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -23,6 +24,7 @@ var (
 	ErrNotADueDate      = errors.New("That date isn't one of this bill's due dates")
 	ErrBillNeedsWallet  = errors.New("Choose a wallet to pay this bill from")
 	ErrNothingToUpdate  = errors.New("No fields to update")
+	ErrBadRegularIncome = errors.New("Each regular income needs a day of the month (1-31), or which weekday (first to last)")
 	errNoTransactionAPI = errors.New("database does not support transactions")
 )
 
@@ -427,16 +429,49 @@ func (s *BillService) Skip(ctx context.Context, userID, id string, req models.Sk
 	return tx.Commit(ctx)
 }
 
-const settingsColumns = `pay_schedule, savings_per_payday, bill_reminders, salary_per_payday, extra_to_savings_percent`
+const settingsColumns = `pay_schedule, savings_per_payday, bill_reminders, salary_per_payday, extra_to_savings_percent, regular_incomes`
 
 func scanSettings(row pgx.Row) (*models.PaySettings, error) {
 	var settings models.PaySettings
+	var incomes []byte
 	err := row.Scan(&settings.PaySchedule, &settings.SavingsPerPayday, &settings.BillReminders,
-		&settings.SalaryPerPayday, &settings.ExtraToSavingsPercent)
+		&settings.SalaryPerPayday, &settings.ExtraToSavingsPercent, &incomes)
 	if err != nil {
 		return nil, err
 	}
+	settings.RegularIncomes = make([]models.RegularIncome, 0)
+	if len(incomes) > 0 {
+		if err := json.Unmarshal(incomes, &settings.RegularIncomes); err != nil {
+			return nil, err
+		}
+	}
 	return &settings, nil
+}
+
+// cleanRegularIncomes checks the fields each kind needs and clears the
+// others, so stored items are unambiguous.
+func cleanRegularIncomes(incomes []models.RegularIncome) ([]models.RegularIncome, error) {
+	cleaned := make([]models.RegularIncome, 0, len(incomes))
+	for _, income := range incomes {
+		income.Name = strings.TrimSpace(income.Name)
+		switch income.Kind {
+		case models.RegularIncomeByDay:
+			if income.Day < 1 || income.Day > 31 {
+				return nil, ErrBadRegularIncome
+			}
+			income.Nth, income.Weekday = 0, 0
+		case models.RegularIncomeByWeekday:
+			if income.Nth < 1 || income.Nth > 5 {
+				return nil, ErrBadRegularIncome
+			}
+			income.Day = 0
+		default:
+			return nil, ErrBadRegularIncome
+		}
+		income.Amount = round2(income.Amount)
+		cleaned = append(cleaned, income)
+	}
+	return cleaned, nil
 }
 
 func (s *BillService) GetSettings(ctx context.Context, userID string) (*models.PaySettings, error) {
@@ -444,6 +479,21 @@ func (s *BillService) GetSettings(ctx context.Context, userID string) (*models.P
 }
 
 func (s *BillService) UpdateSettings(ctx context.Context, userID string, req models.UpdatePaySettingsRequest) (*models.PaySettings, error) {
+	var incomes []byte
+	if req.RegularIncomes != nil {
+		cleaned, err := cleanRegularIncomes(*req.RegularIncomes)
+		if err != nil {
+			return nil, err
+		}
+		if incomes, err = json.Marshal(cleaned); err != nil {
+			return nil, err
+		}
+	}
+	// A nil []byte is sent as NULL, which keeps the stored list.
+	var incomesParam interface{}
+	if incomes != nil {
+		incomesParam = string(incomes)
+	}
 	return scanSettings(s.db.QueryRow(ctx,
 		`UPDATE users SET
 			pay_schedule = COALESCE($2::varchar, pay_schedule),
@@ -451,10 +501,11 @@ func (s *BillService) UpdateSettings(ctx context.Context, userID string, req mod
 			bill_reminders = COALESCE($4::boolean, bill_reminders),
 			salary_per_payday = COALESCE($5::numeric, salary_per_payday),
 			extra_to_savings_percent = COALESCE($6::smallint, extra_to_savings_percent),
+			regular_incomes = COALESCE($7::jsonb, regular_incomes),
 			updated_at = NOW()
 		 WHERE id = $1
 		 RETURNING `+settingsColumns,
-		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders, req.SalaryPerPayday, req.ExtraToSavingsPercent,
+		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders, req.SalaryPerPayday, req.ExtraToSavingsPercent, incomesParam,
 	))
 }
 
@@ -494,12 +545,13 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	}
 
 	result := &models.SafeToSpend{
-		Configured:  settings.PaySchedule != nil,
-		PaySchedule: settings.PaySchedule,
-		Today:       FormatDay(today),
-		Mode:        "balance",
-		Bills:       make([]models.ReservedBill, 0),
-		PeriodBills: make([]models.ReservedBill, 0),
+		Configured:    settings.PaySchedule != nil,
+		PaySchedule:   settings.PaySchedule,
+		Today:         FormatDay(today),
+		Mode:          "balance",
+		Bills:         make([]models.ReservedBill, 0),
+		PeriodBills:   make([]models.ReservedBill, 0),
+		RegularIncome: make([]models.ExpectedIncome, 0),
 	}
 
 	// Transfers between two counted wallets cancel out here, since each side
@@ -575,7 +627,15 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	sort.SliceStable(result.Bills, func(i, j int) bool { return result.Bills[i].DueDate < result.Bills[j].DueDate })
 	sort.SliceStable(result.PeriodBills, func(i, j int) bool { return result.PeriodBills[i].DueDate < result.PeriodBills[j].DueDate })
 
-	salaryMode := settings.SalaryPerPayday > 0
+	// Regular income (allowances) is expected pay, like the salary, so only
+	// income above both counts as extra.
+	result.RegularIncome = RegularIncomeInPeriod(settings.RegularIncomes, period)
+	result.ExpectedPay = settings.SalaryPerPayday
+	for _, income := range result.RegularIncome {
+		result.ExpectedPay += income.Amount
+	}
+
+	salaryMode := settings.SalaryPerPayday > 0 || len(settings.RegularIncomes) > 0
 	if salaryMode {
 		result.Mode = "salary"
 		result.Salary = settings.SalaryPerPayday
@@ -585,9 +645,9 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 		if result.SpentSincePayday, err = s.sumInPeriod(ctx, userID, "expense", period.Start, period.NextPayday); err != nil {
 			return nil, err
 		}
-		result.PayEstimated = result.IncomeRecorded < result.Salary
-		result.Pay = math.Max(result.IncomeRecorded, result.Salary)
-		result.ExtraIncome = math.Max(result.IncomeRecorded-result.Salary, 0)
+		result.PayEstimated = result.IncomeRecorded < result.ExpectedPay
+		result.Pay = math.Max(result.IncomeRecorded, result.ExpectedPay)
+		result.ExtraIncome = math.Max(result.IncomeRecorded-result.ExpectedPay, 0)
 		result.ExtraSaved = round2(result.ExtraIncome * float64(settings.ExtraToSavingsPercent) / 100)
 	}
 
@@ -620,6 +680,7 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 
 	if salaryMode {
 		result.IncomeRecorded = round2(result.IncomeRecorded)
+		result.ExpectedPay = round2(result.ExpectedPay)
 		result.Pay = round2(result.Pay)
 		result.ExtraIncome = round2(result.ExtraIncome)
 		result.BillsThisPeriod = round2(result.BillsThisPeriod)

@@ -1,6 +1,10 @@
 package services
 
-import "time"
+import (
+	"time"
+
+	"github.com/Lorredo/fintrack/api/internal/models"
+)
 
 // Dates here are calendar days: midnight UTC stands for the user's local date,
 // which the app sends, so the server's own time zone never shifts a day.
@@ -110,4 +114,41 @@ func CurrentPayPeriod(schedule string, today time.Time) PayPeriod {
 // DaysBetween counts whole days from a to b.
 func DaysBetween(a, b time.Time) int {
 	return int(b.Sub(a).Hours() / 24)
+}
+
+// RegularIncomeDate is the day a regular income arrives in a given month:
+// day N (clamped to the month's end), or the Nth weekday, where Nth 5 is the
+// last one in the month.
+func RegularIncomeDate(income models.RegularIncome, year int, month time.Month) time.Time {
+	if income.Kind != models.RegularIncomeByWeekday {
+		return clampedDay(year, month, income.Day)
+	}
+	weekday := time.Weekday(income.Weekday)
+	if income.Nth >= 5 {
+		last := clampedDay(year, month, 31)
+		return last.AddDate(0, 0, -((int(last.Weekday()) - int(weekday) + 7) % 7))
+	}
+	first := dayOf(year, month, 1)
+	offset := (int(weekday) - int(first.Weekday()) + 7) % 7
+	return first.AddDate(0, 0, offset+7*(max(income.Nth, 1)-1))
+}
+
+// RegularIncomeInPeriod lists regular income arriving within the period,
+// which can span two months (for example Oct 30 to Nov 14).
+func RegularIncomeInPeriod(incomes []models.RegularIncome, period PayPeriod) []models.ExpectedIncome {
+	expected := make([]models.ExpectedIncome, 0)
+	lastDay := period.NextPayday.AddDate(0, 0, -1)
+	for _, income := range incomes {
+		months := []time.Time{dayOf(period.Start.Year(), period.Start.Month(), 1)}
+		if lastDay.Month() != period.Start.Month() || lastDay.Year() != period.Start.Year() {
+			months = append(months, dayOf(lastDay.Year(), lastDay.Month(), 1))
+		}
+		for _, month := range months {
+			date := RegularIncomeDate(income, month.Year(), month.Month())
+			if !date.Before(period.Start) && date.Before(period.NextPayday) {
+				expected = append(expected, models.ExpectedIncome{Name: income.Name, Amount: income.Amount, Date: FormatDay(date)})
+			}
+		}
+	}
+	return expected
 }

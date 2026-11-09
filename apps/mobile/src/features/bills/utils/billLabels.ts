@@ -1,4 +1,4 @@
-import type { Bill, BillFrequency } from '../types';
+import type { Bill, BillFrequency, RegularIncome } from '../types';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -34,3 +34,20 @@ export const STATUS_COLORS: Record<Bill['status'], { text: string; bg: string }>
   upcoming: { text: '#4B5563', bg: '#F3F4F6' },
   paused: { text: '#9CA3AF', bg: '#F3F4F6' },
 };
+
+export const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const ORDINALS = ['', 'First', 'Second', 'Third', 'Fourth', 'Last'];
+
+function ordinalDay(day: number): string {
+  const tens = day % 100;
+  if (tens >= 11 && tens <= 13) return `${day}th`;
+  return `${day}${['th', 'st', 'nd', 'rd'][day % 10] ?? 'th'}`;
+}
+
+/** "Every 15th" or "First Friday of the month". */
+export function describeRegularIncome(income: RegularIncome): string {
+  if (income.kind === 'weekday') {
+    return `${ORDINALS[income.nth ?? 1]} ${WEEKDAY_NAMES[income.weekday ?? 0]} of the month`;
+  }
+  return `Every ${ordinalDay(income.day ?? 1)}`;
+}

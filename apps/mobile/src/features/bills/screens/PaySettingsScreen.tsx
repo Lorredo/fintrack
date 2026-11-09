@@ -7,9 +7,12 @@ import { Button, Input, Loader, Screen } from '@/components/ui';
 import { useToast } from '@/features/toast/hooks/useToast';
 import { getErrorMessage } from '@/shared/utils/apiErrors';
 import { ChoicePills } from '../components/ChoicePills';
+import RegularIncomeModal from '../components/RegularIncomeModal';
 import { usePaySettings, useUpdatePaySettings } from '../hooks/useBills';
 import { requestReminderPermission } from '../services/reminders';
-import type { PaySchedule, PaySettings } from '../types';
+import type { PaySchedule, PaySettings, RegularIncome } from '../types';
+import { formatCurrency } from '@/shared/utils/categories';
+import { describeRegularIncome } from '../utils/billLabels';
 
 const EXTRA_SPLITS: { value: PaySettings['extraToSavingsPercent']; label: string }[] = [
   { value: 0, label: 'Spend it' },
@@ -32,6 +35,9 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   const [billReminders, setBillReminders] = useState(settings.billReminders);
   const [salary, setSalary] = useState(settings.salaryPerPayday > 0 ? String(settings.salaryPerPayday) : '');
   const [extraToSavings, setExtraToSavings] = useState(settings.extraToSavingsPercent ?? 50);
+  const [regularIncomes, setRegularIncomes] = useState<RegularIncome[]>(settings.regularIncomes ?? []);
+  // null: closed. -1: adding. Otherwise the index being edited.
+  const [editingIncome, setEditingIncome] = useState<number | null>(null);
 
   const parsedSavings = savings.trim() === '' ? 0 : Number(savings);
   const parsedSalary = salary.trim() === '' ? 0 : Number(salary);
@@ -48,6 +54,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         savingsPerPayday: Math.round(parsedSavings * 100) / 100,
         salaryPerPayday: Math.round(parsedSalary * 100) / 100,
         extraToSavingsPercent: extraToSavings,
+        regularIncomes,
         billReminders,
       },
       {
@@ -86,6 +93,40 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         </Text>
       </View>
 
+      <View style={{ gap: 8 }}>
+        <Text className="text-sm font-medium text-text">Other regular income</Text>
+        <Text className="text-sm text-text-secondary">
+          Allowances you get every month, like rice allowance or augmentation. They count as expected pay, not extra.
+        </Text>
+        {regularIncomes.map((income, index) => (
+          <Pressable
+            key={`${income.name}-${index}`}
+            onPress={() => setEditingIncome(index)}
+            accessibilityRole="button"
+            className="active:opacity-70"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 12 }}
+          >
+            <MaterialCommunityIcons name="cash-multiple" size={20} color="#059669" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827' }}>{income.name}</Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{describeRegularIncome(income)}</Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>{formatCurrency(income.amount)}</Text>
+          </Pressable>
+        ))}
+        {regularIncomes.length < 10 && (
+          <Pressable
+            onPress={() => setEditingIncome(-1)}
+            accessibilityRole="button"
+            className="active:opacity-70"
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#93C5FD', paddingVertical: 14 }}
+          >
+            <MaterialCommunityIcons name="plus" size={20} color="#2563EB" />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: '#2563EB' }}>Add regular income</Text>
+          </Pressable>
+        )}
+      </View>
+
       <View style={{ gap: 6 }}>
         <Input
           label="Set aside for savings each payday"
@@ -100,7 +141,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         </Text>
       </View>
 
-      {parsedSalary > 0 && (
+      {(parsedSalary > 0 || regularIncomes.length > 0) && (
         <View style={{ gap: 6 }}>
           <ChoicePills
             label="Overtime and other extra income"
@@ -134,6 +175,28 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
           accessibilityLabel="Bill reminders"
         />
       </View>
+
+      <RegularIncomeModal
+        visible={editingIncome !== null}
+        income={editingIncome !== null && editingIncome >= 0 ? regularIncomes[editingIncome] : null}
+        onClose={() => setEditingIncome(null)}
+        onSave={(income) => {
+          setRegularIncomes((current) =>
+            editingIncome !== null && editingIncome >= 0
+              ? current.map((item, index) => (index === editingIncome ? income : item))
+              : [...current, income],
+          );
+          setEditingIncome(null);
+        }}
+        onRemove={
+          editingIncome !== null && editingIncome >= 0
+            ? () => {
+                setRegularIncomes((current) => current.filter((_, index) => index !== editingIncome));
+                setEditingIncome(null);
+              }
+            : undefined
+        }
+      />
 
       <Button title="Save" onPress={handleSave} disabled={!isValid || !paySchedule} loading={updateSettings.isPending} />
     </View>

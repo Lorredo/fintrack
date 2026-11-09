@@ -3,6 +3,8 @@ package services
 import (
 	"testing"
 	"time"
+
+	"github.com/Lorredo/fintrack/api/internal/models"
 )
 
 func mustDay(t *testing.T, value string) time.Time {
@@ -98,5 +100,54 @@ func TestDaysBetween(t *testing.T) {
 	}
 	if got := DaysBetween(mustDay(t, "2027-02-27"), mustDay(t, "2027-03-15")); got != 16 {
 		t.Errorf("got %d, want 16", got)
+	}
+}
+
+func TestRegularIncomeDate(t *testing.T) {
+	friday := models.RegularIncome{Kind: models.RegularIncomeByWeekday, Nth: 1, Weekday: int(time.Friday)}
+	lastMonday := models.RegularIncome{Kind: models.RegularIncomeByWeekday, Nth: 5, Weekday: int(time.Monday)}
+	cases := []struct {
+		name   string
+		income models.RegularIncome
+		year   int
+		month  time.Month
+		want   string
+	}{
+		{"first Friday of Nov", friday, 2026, time.November, "2026-11-06"},
+		{"first Friday of Dec", friday, 2026, time.December, "2026-12-04"},
+		{"first Friday on the 1st", friday, 2027, time.January, "2027-01-01"},
+		{"second Friday", models.RegularIncome{Kind: models.RegularIncomeByWeekday, Nth: 2, Weekday: int(time.Friday)}, 2026, time.November, "2026-11-13"},
+		{"last Monday", lastMonday, 2026, time.November, "2026-11-30"},
+		{"last Monday not on the 31st", lastMonday, 2026, time.December, "2026-12-28"},
+		{"day 15", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 15}, 2026, time.November, "2026-11-15"},
+		{"day 31 in February", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 31}, 2027, time.February, "2027-02-28"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := FormatDay(RegularIncomeDate(tc.income, tc.year, tc.month)); got != tc.want {
+				t.Errorf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRegularIncomeInPeriod(t *testing.T) {
+	incomes := []models.RegularIncome{
+		{Name: "Augmentation", Amount: 2000, Kind: models.RegularIncomeByWeekday, Nth: 1, Weekday: int(time.Friday)},
+		{Name: "Rice allowance", Amount: 1500, Kind: models.RegularIncomeByDay, Day: 15},
+	}
+	// Oct 30 to Nov 14 spans two months: augmentation on Nov 6, no rice allowance.
+	got := RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleSemiMonthly, mustDay(t, "2026-11-09")))
+	if len(got) != 1 || got[0].Name != "Augmentation" || got[0].Date != "2026-11-06" {
+		t.Errorf("Oct 30 to Nov 14: got %+v", got)
+	}
+	// Nov 15 to Nov 29: rice allowance on the 15th.
+	got = RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleSemiMonthly, mustDay(t, "2026-11-20")))
+	if len(got) != 1 || got[0].Name != "Rice allowance" || got[0].Date != "2026-11-15" {
+		t.Errorf("Nov 15 to Nov 29: got %+v", got)
+	}
+	// Irregular pay covers the whole month, so both arrive.
+	if got = RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleIrregular, mustDay(t, "2026-11-20"))); len(got) != 2 {
+		t.Errorf("whole month: got %+v", got)
 	}
 }

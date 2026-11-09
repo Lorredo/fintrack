@@ -53,6 +53,24 @@ export interface SkipBillInput {
   dueDate: string;
 }
 
+/** Pay besides the salary that arrives every month, such as an allowance. */
+export interface RegularIncome {
+  name: string;
+  amount: number;
+  /** 'day': on day `day` of the month. 'weekday': the `nth` `weekday`, where nth 5 is the last. */
+  kind: 'day' | 'weekday';
+  day?: number;
+  nth?: number;
+  /** 0 is Sunday. */
+  weekday?: number;
+}
+
+export interface ExpectedIncome {
+  name: string;
+  amount: number;
+  date: string;
+}
+
 export interface PaySettings {
   paySchedule: PaySchedule | null;
   savingsPerPayday: number;
@@ -61,6 +79,7 @@ export interface PaySettings {
   salaryPerPayday: number;
   /** Share of income above the salary (overtime, bonuses) that goes to savings. */
   extraToSavingsPercent: 0 | 50 | 100;
+  regularIncomes: RegularIncome[];
 }
 
 export interface ReservedBill {
@@ -97,6 +116,9 @@ export interface SafeToSpend {
   incomeRecorded: number;
   /** True until the salary has been recorded as income this period. */
   payEstimated: boolean;
+  /** Salary plus the regular income due this period. */
+  expectedPay: number;
+  regularIncome: ExpectedIncome[];
   pay: number;
   extraIncome: number;
   extraSaved: number;
