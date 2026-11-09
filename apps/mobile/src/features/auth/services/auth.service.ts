@@ -2,6 +2,7 @@ import { AuthApi } from '../api/auth.api';
 import { useAuthStore } from '../store/auth.store';
 import { storage, StorageKeys } from '@/lib/storage';
 import { clearUserCache } from '@/lib/queryClient';
+import { clearBillReminders } from '@/features/bills/services/reminders';
 import { PinService } from './pin.service';
 import type {
   LoginRequest,
@@ -94,6 +95,8 @@ export class AuthService {
     storage.remove(StorageKeys.ACCESS_TOKEN);
     storage.remove(StorageKeys.REFRESH_TOKEN);
     clearUserCache();
+    // Reminders name the user's bills, so they shouldn't outlive the session.
+    void clearBillReminders();
 
     if (clearDevicePin) {
       storage.remove(StorageKeys.USER);

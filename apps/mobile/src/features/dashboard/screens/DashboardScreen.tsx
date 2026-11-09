@@ -12,6 +12,8 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useCurrentUser } from '@/features/auth/hooks/useCurrentUser';
 import { getGreeting, formatCurrency, formatMonth, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
+import { SafeToSpendCard } from '@/features/bills/components/SafeToSpendCard';
+import { UpcomingBills } from '@/features/bills/components/UpcomingBills';
 import type { Transaction } from '@/features/transactions/types';
 import type { Budget } from '@/features/budgets/types';
 import type { Account } from '@/features/accounts/types';
@@ -151,6 +153,8 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
+      <SafeToSpendCard />
+
       {/* Wallet Carousel */}
       <View style={{ marginBottom: 16 }}>
         <ScrollView
@@ -233,11 +237,11 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      {/* Safe to Spend / Active Budgets */}
+      {/* Active Budgets */}
       {summary.activeBudgets?.length > 0 && (
         <View style={{ marginBottom: 24 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Safe to Spend</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Budgets Left</Text>
             <Pressable onPress={() => router.push('/budgets')}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: '#2563EB' }}>Manage</Text>
             </Pressable>
@@ -291,6 +295,8 @@ export default function DashboardScreen() {
           <MaterialCommunityIcons name="chevron-right" size={20} color="#9CA3AF" />
         </Pressable>
       )}
+
+      <UpcomingBills />
 
       {/* Metrics Row */}
       <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 }}>{formatMonth(month)}</Text>

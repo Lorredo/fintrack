@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Button, Input, Modal } from '@/components/ui';
@@ -26,6 +26,7 @@ function WalletForm({ wallet, onClose }: { wallet: Account | null; onClose: () =
   const [name, setName] = useState(wallet?.name ?? '');
   const [type, setType] = useState<AccountType>(wallet?.type ?? 'cash');
   const [color, setColor] = useState(wallet?.color || '#2563EB');
+  const [inSafeToSpend, setInSafeToSpend] = useState(wallet?.inSafeToSpend ?? true);
   const [nameError, setNameError] = useState<string | undefined>();
 
   const handleSave = () => {
@@ -39,9 +40,9 @@ function WalletForm({ wallet, onClose }: { wallet: Account | null; onClose: () =
       onError: (err: unknown) => toast.error(getErrorMessage(err) || "Couldn't save the wallet"),
     };
     if (wallet) {
-      updateAccount.mutate({ id: wallet.id, name: trimmedName, type, color }, callbacks);
+      updateAccount.mutate({ id: wallet.id, name: trimmedName, type, color, inSafeToSpend }, callbacks);
     } else {
-      createAccount.mutate({ name: trimmedName, type, color }, callbacks);
+      createAccount.mutate({ name: trimmedName, type, color, inSafeToSpend }, callbacks);
     }
   };
 
@@ -94,6 +95,21 @@ function WalletForm({ wallet, onClose }: { wallet: Account | null; onClose: () =
             </Pressable>
           ))}
         </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Text className="text-sm font-medium text-text">Count in Safe to Spend</Text>
+          <Text className="text-sm text-text-secondary mt-1">
+            Turn off for savings or emergency funds you don’t spend from.
+          </Text>
+        </View>
+        <Switch
+          value={inSafeToSpend}
+          onValueChange={setInSafeToSpend}
+          trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
+          thumbColor={inSafeToSpend ? '#2563EB' : '#F9FAFB'}
+          accessibilityLabel="Count in Safe to Spend"
+        />
       </View>
       <Button
         title="Save"

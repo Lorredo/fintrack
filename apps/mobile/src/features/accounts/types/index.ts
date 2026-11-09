@@ -7,6 +7,8 @@ export interface Account {
   type: AccountType;
   color?: string;
   balance: number;
+  /** False for wallets such as savings, which Safe to Spend leaves out. */
+  inSafeToSpend?: boolean;
   lastAdjustedAt?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -16,6 +18,7 @@ export interface CreateAccountInput {
   name: string;
   type: AccountType;
   color?: string;
+  inSafeToSpend?: boolean;
 }
 
 export interface UpdateAccountInput {
@@ -23,6 +26,7 @@ export interface UpdateAccountInput {
   name?: string;
   type?: AccountType;
   color?: string;
+  inSafeToSpend?: boolean;
 }
 
 export interface SetBalanceInput {

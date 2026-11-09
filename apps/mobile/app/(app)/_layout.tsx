@@ -1,4 +1,5 @@
 import AuthGuard from "@/shared/navigation/AuthGuard";
+import { BillReminders } from "@/features/bills/components/BillReminders";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
@@ -9,6 +10,7 @@ export default function AppLayout() {
 
   return (
     <AuthGuard>
+      <BillReminders />
       <View style={{ flex: 1, backgroundColor: '#F5F7FA' }}>
         <Tabs
           screenOptions={{

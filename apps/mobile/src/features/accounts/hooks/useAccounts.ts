@@ -18,8 +18,9 @@ export function useCreateAccount() {
 
   return useMutation({
     mutationFn: (input: CreateAccountInput) => AccountApi.create(input),
+    // Safe to Spend depends on which wallets count, and bills on their wallet.
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ACCOUNT_KEYS.all });
+      [ACCOUNT_KEYS.all, ['dashboard'], ['bills']].forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     },
   });
 }
@@ -31,7 +32,7 @@ export function useSetAccountBalance() {
     mutationFn: (input: SetBalanceInput) => AccountApi.setBalance(input),
     onSuccess: () => {
       // An adjustment is a transaction, so everything built on them is stale.
-      [ACCOUNT_KEYS.all, ['transactions'], ['dashboard'], ['budgets'], ['reports']].forEach((queryKey) =>
+      [ACCOUNT_KEYS.all, ['transactions'], ['dashboard'], ['budgets'], ['reports'], ['bills']].forEach((queryKey) =>
         queryClient.invalidateQueries({ queryKey }),
       );
     },
@@ -43,8 +44,9 @@ export function useUpdateAccount() {
 
   return useMutation({
     mutationFn: (input: UpdateAccountInput) => AccountApi.update(input),
+    // Safe to Spend depends on which wallets count, and bills on their wallet.
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ACCOUNT_KEYS.all });
+      [ACCOUNT_KEYS.all, ['dashboard'], ['bills']].forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     },
   });
 }
@@ -54,8 +56,9 @@ export function useDeleteAccount() {
 
   return useMutation({
     mutationFn: (id: string) => AccountApi.delete(id),
+    // Safe to Spend depends on which wallets count, and bills on their wallet.
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ACCOUNT_KEYS.all });
+      [ACCOUNT_KEYS.all, ['dashboard'], ['bills']].forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     },
   });
 }

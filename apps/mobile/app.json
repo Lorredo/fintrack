@@ -37,6 +37,12 @@
       "expo-router",
       "expo-status-bar",
       "expo-local-authentication",
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB"
+        }
+      ],
       "expo-apple-authentication",
       [
         "react-native-android-widget",

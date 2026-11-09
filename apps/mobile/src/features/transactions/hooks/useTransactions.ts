@@ -20,6 +20,8 @@ const RELATED_QUERY_KEYS = [
   ['dashboard'],
   ['accounts'],
   ['reports'],
+  // Deleting a bill's expense reopens that due date.
+  ['bills'],
 ] as const;
 
 export function useTransactionCategories(type?: string) {
