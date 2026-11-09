@@ -264,6 +264,12 @@ func exportTypeLabel(value string) string {
 	if strings.HasPrefix(value, "adjust_") {
 		return "Adjustment"
 	}
+	if value == "loan_in" {
+		return "Utang / Paluwagan in"
+	}
+	if value == "loan_out" {
+		return "Utang / Paluwagan out"
+	}
 	if value == "" {
 		return value
 	}

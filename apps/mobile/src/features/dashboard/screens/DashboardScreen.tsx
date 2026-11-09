@@ -33,6 +33,8 @@ const QUICK_ACTIONS: {
   { label: 'Wallets', icon: 'bank-outline', color: '#059669', route: '/accounts' },
   { label: 'Bills', icon: 'receipt', color: '#DC2626', route: '/bills' },
   { label: 'Payday', icon: 'calendar-month-outline', color: '#D97706', route: '/pay-settings' },
+  { label: 'Utang', icon: 'hand-coin-outline', color: '#0891B2', route: '/utang' },
+  { label: 'Paluwagan', icon: 'account-group-outline', color: '#7C3AED', route: '/paluwagan' },
 ];
 
 export default function DashboardScreen() {
@@ -216,8 +218,8 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* Quick Actions Row: each action takes an equal share, so five fit on a phone. */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, marginBottom: 8 }}>
+        {/* Quick Actions: a 4-column grid, so every action fits on a phone. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 24, marginBottom: 0, rowGap: 16 }}>
           {QUICK_ACTIONS.map((action) => (
             <Pressable
               key={action.label}
@@ -225,7 +227,7 @@ export default function DashboardScreen() {
               accessibilityRole="button"
               accessibilityLabel={action.label}
               className="active:opacity-70"
-              style={{ flex: 1, alignItems: 'center', gap: 8 }}
+              style={{ width: '25%', alignItems: 'center', gap: 8 }}
             >
               <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}>
                 <MaterialCommunityIcons name={action.icon} size={26} color={action.color} />

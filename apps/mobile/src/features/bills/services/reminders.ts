@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 
 import { formatCurrency } from '@/shared/utils/categories';
 import type { Bill } from '../types';
+import type { Debt, Paluwagan } from '@/features/utang/types';
 
 // Reminders are local notifications scheduled on the phone, so they need no
 // push service. Without Android's exact alarm permission they may arrive a
@@ -10,6 +11,9 @@ import type { Bill } from '../types';
 
 const CHANNEL_ID = 'bills';
 const ID_PREFIX = 'bill-';
+// Every reminder FinTrack schedules starts with one of these, so a sync can
+// replace them all without touching anything else.
+const OWNED_PREFIXES = [ID_PREFIX, 'debt-', 'paluwagan-'];
 const REMINDER_HOUR = 9;
 
 const isSupported = Platform.OS === 'android' || Platform.OS === 'ios';
@@ -59,6 +63,8 @@ interface PlannedReminder {
   date: Date;
   title: string;
   body: string;
+  /** The screen a tap opens. */
+  url?: string;
 }
 
 export function planReminders(bills: Bill[], now = new Date()): PlannedReminder[] {
@@ -98,11 +104,69 @@ export function planReminders(bills: Bill[], now = new Date()): PlannedReminder[
   return planned.filter((reminder) => reminder.date > now);
 }
 
+/** Utang due dates and paluwagan rounds, alongside bills. */
+export function planOtherReminders(debts: Debt[], paluwagans: Paluwagan[], now = new Date()): PlannedReminder[] {
+  const planned: PlannedReminder[] = [];
+  for (const debt of debts) {
+    if (debt.settled || !debt.dueDate) continue;
+    const amount = formatCurrency(debt.remaining);
+    const base = `debt-${debt.id}-${debt.dueDate}`;
+    if (debt.direction === 'borrowed') {
+      planned.push({
+        identifier: `${base}-before`,
+        date: atReminderHour(debt.dueDate, 1),
+        title: `Utang to ${debt.personName} is due tomorrow`,
+        body: `${amount} left to pay`,
+        url: '/utang',
+      });
+      planned.push({
+        identifier: `${base}-due`,
+        date: atReminderHour(debt.dueDate),
+        title: `Utang to ${debt.personName} is due today`,
+        body: `${amount} left to pay`,
+        url: '/utang',
+      });
+    } else {
+      planned.push({
+        identifier: `${base}-due`,
+        date: atReminderHour(debt.dueDate),
+        title: `${debt.personName}'s utang is due today`,
+        body: `${amount} still owed to you · Tap to send a reminder`,
+        url: '/utang',
+      });
+    }
+  }
+  for (const paluwagan of paluwagans) {
+    if (!paluwagan.active) continue;
+    const next = paluwagan.nextContribution;
+    if (next) {
+      planned.push({
+        identifier: `paluwagan-${paluwagan.id}-${next.round}-pay`,
+        date: next.isPast ? nextReminderHour(now) : atReminderHour(next.date),
+        title: `${paluwagan.name}: round ${next.round} contribution`,
+        body: `${formatCurrency(paluwagan.contribution)} ${next.isPast ? 'is overdue' : 'is due today'}`,
+        url: '/paluwagan',
+      });
+    }
+    const myRound = paluwagan.rounds.find((round) => round.isMyTurn);
+    if (myRound && !myRound.payoutReceived) {
+      planned.push({
+        identifier: `paluwagan-${paluwagan.id}-${myRound.round}-payout`,
+        date: atReminderHour(myRound.date),
+        title: `${paluwagan.name}: it's your turn`,
+        body: `Your ${formatCurrency(paluwagan.payoutAmount)} payout is today`,
+        url: '/paluwagan',
+      });
+    }
+  }
+  return planned.filter((reminder) => reminder.date > now);
+}
+
 async function cancelBillReminders() {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(
     scheduled
-      .filter((request) => request.identifier.startsWith(ID_PREFIX))
+      .filter((request) => OWNED_PREFIXES.some((prefix) => request.identifier.startsWith(prefix)))
       .map((request) => Notifications.cancelScheduledNotificationAsync(request.identifier)),
   );
 }
@@ -111,7 +175,12 @@ async function cancelBillReminders() {
  * Replaces all bill reminders with ones for the bills' next due dates. Never
  * asks for permission itself, so opening the app doesn't prompt.
  */
-export async function syncBillReminders(bills: Bill[], enabled: boolean): Promise<void> {
+export async function syncBillReminders(
+  bills: Bill[],
+  enabled: boolean,
+  debts: Debt[] = [],
+  paluwagans: Paluwagan[] = [],
+): Promise<void> {
   if (!isSupported) return;
   try {
     await cancelBillReminders();
@@ -120,10 +189,10 @@ export async function syncBillReminders(bills: Bill[], enabled: boolean): Promis
     if (!granted) return;
     await ensureChannel();
 
-    for (const reminder of planReminders(bills)) {
+    for (const reminder of [...planReminders(bills), ...planOtherReminders(debts, paluwagans)]) {
       await Notifications.scheduleNotificationAsync({
         identifier: reminder.identifier,
-        content: { title: reminder.title, body: reminder.body, data: { url: '/bills' } },
+        content: { title: reminder.title, body: reminder.body, data: { url: reminder.url ?? '/bills' } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminder.date, channelId: CHANNEL_ID },
       });
     }

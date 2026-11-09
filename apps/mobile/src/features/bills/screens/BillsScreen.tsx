@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import { Pressable, SectionList, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Button, EmptyState, Loader, Screen } from '@/components/ui';
+import { Button, EmptyState, FloatingAddButton, Loader, Screen } from '@/components/ui';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { formatCurrency } from '@/shared/utils/categories';
 import { BillRow } from '../components/BillRow';
@@ -18,41 +17,6 @@ export const PAY_SCHEDULE_LABELS = {
   semi_monthly: '15th and 30th',
   irregular: 'Irregular (end of month)',
 } as const;
-
-function AddBillButton({ onPress }: { onPress: () => void }) {
-  const insets = useSafeAreaInsets();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Add bill"
-      className="active:opacity-80"
-      style={{
-        position: 'absolute',
-        right: 20,
-        // Absolute children sit over the screen's bottom padding, so clear
-        // the system navigation bar explicitly.
-        bottom: 20 + insets.bottom,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        backgroundColor: '#2563EB',
-        borderRadius: 999,
-        paddingLeft: 22,
-        paddingRight: 28,
-        paddingVertical: 16,
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-        elevation: 6,
-      }}
-    >
-      <MaterialCommunityIcons name="plus" size={22} color="#FFFFFF" />
-      <Text style={{ fontSize: 15, lineHeight: 20, fontWeight: '700', color: '#FFFFFF' }}>Add Bill</Text>
-    </Pressable>
-  );
-}
 
 export default function BillsScreen() {
   const router = useRouter();
@@ -160,7 +124,7 @@ export default function BillsScreen() {
         />
       )}
 
-      {bills && bills.length > 0 && <AddBillButton onPress={() => setIsAdding(true)} />}
+      {bills && bills.length > 0 && <FloatingAddButton label="Add Bill" onPress={() => setIsAdding(true)} />}
 
       <BillFormModal visible={isAdding || editing !== null} bill={editing} onClose={() => { setIsAdding(false); setEditing(null); }} />
       <MarkPaidModal bill={paying} onClose={() => setPaying(null)} />

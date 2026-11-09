@@ -7,6 +7,8 @@ const AMOUNT_SIGNS: Record<ExportRow['type'], string> = {
   transfer: '',
   adjust_in: '+',
   adjust_out: '-',
+  loan_in: '+',
+  loan_out: '-',
 };
 
 function escapeHtml(value: string): string {

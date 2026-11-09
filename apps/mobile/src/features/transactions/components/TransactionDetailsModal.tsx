@@ -9,7 +9,7 @@ import { formatCurrency, formatDate } from '@/shared/utils/categories';
 import { getErrorMessage } from '@/shared/utils/apiErrors';
 import { useDeleteTransaction } from '../hooks/useTransactions';
 import type { Transaction } from '../types';
-import { getAmountDisplay, getWalletLabel, isAdjustment } from '../utils/amountDisplay';
+import { getAmountDisplay, getWalletLabel, isEditableInForm, isLoan } from '../utils/amountDisplay';
 
 interface TransactionDetailsModalProps {
   transaction: Transaction | null;
@@ -70,15 +70,22 @@ export default function TransactionDetailsModal({ transaction, accounts, onClose
           <DetailRow label="Date" value={formatDate(transaction.date)} />
           <DetailRow label="Wallet" value={getWalletLabel(transaction, accounts)} />
           {transaction.description ? <DetailRow label="Description" value={transaction.description} /> : null}
-          {!isAdjustment(transaction.type) && (
+          {isEditableInForm(transaction.type) && (
             <Button title="Edit" variant="outline" onPress={() => handleEdit(transaction)} />
           )}
-          <Button
-            title="Delete"
-            variant="danger"
-            onPress={() => handleDelete(transaction)}
-            loading={deleteMutation.isPending}
-          />
+          {isLoan(transaction.type) && (
+            <Text style={{ fontSize: 13, color: '#6B7280' }}>
+              Edit or delete this from {transaction.category === 'Paluwagan' ? 'Paluwagan' : 'Utang'}, so it stays in step there.
+            </Text>
+          )}
+          {!isLoan(transaction.type) && (
+            <Button
+              title="Delete"
+              variant="danger"
+              onPress={() => handleDelete(transaction)}
+              loading={deleteMutation.isPending}
+            />
+          )}
         </View>
       )}
     </Modal>

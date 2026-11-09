@@ -20,3 +20,5 @@ export * from './TextField';
 export * from './Toast';
 export * from './ExpandableFAB';
 export * from './ConnectionBanner';
+export * from './FloatingAddButton';
+export * from './DateField';

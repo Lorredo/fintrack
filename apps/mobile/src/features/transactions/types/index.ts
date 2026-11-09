@@ -1,4 +1,5 @@
-export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjust_in' | 'adjust_out';
+/** loan_in / loan_out are utang and paluwagan money: real wallet money, but not income or spending. */
+export type TransactionType = 'income' | 'expense' | 'transfer' | 'adjust_in' | 'adjust_out' | 'loan_in' | 'loan_out';
 
 export interface Transaction {
   id: string;

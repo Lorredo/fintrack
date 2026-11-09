@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 
 import { useBills, usePaySettings } from '../hooks/useBills';
+import { useDebts, usePaluwagans } from '@/features/utang/hooks/useUtang';
 import { syncBillReminders } from '../services/reminders';
 
 if (Platform.OS !== 'web') {
@@ -18,6 +19,9 @@ if (Platform.OS !== 'web') {
   });
 }
 
+// Screens a reminder tap may open; anything else in the payload is ignored.
+const REMINDER_SCREENS = ['/bills', '/utang', '/paluwagan'];
+
 // Taps already acted on, so returning to the app doesn't reopen Bills.
 const handledResponses = new Set<string>();
 
@@ -30,20 +34,22 @@ export function BillReminders() {
   const router = useRouter();
   const { data: bills } = useBills();
   const { data: settings } = usePaySettings();
+  const { data: debtSummary } = useDebts();
+  const { data: paluwagans } = usePaluwagans();
   const response = Notifications.useLastNotificationResponse();
 
   useEffect(() => {
     if (!bills || !settings) return;
-    syncBillReminders(bills, settings.billReminders);
-  }, [bills, settings]);
+    syncBillReminders(bills, settings.billReminders, debtSummary?.debts ?? [], paluwagans ?? []);
+  }, [bills, settings, debtSummary, paluwagans]);
 
   useEffect(() => {
     if (!response) return;
     const key = `${response.notification.request.identifier}-${response.notification.date}`;
     const url = response.notification.request.content.data?.url;
-    if (handledResponses.has(key) || url !== '/bills') return;
+    if (handledResponses.has(key) || typeof url !== 'string' || !REMINDER_SCREENS.includes(url)) return;
     handledResponses.add(key);
-    router.push('/bills');
+    router.push(url as '/bills');
   }, [response, router]);
 
   return null;
