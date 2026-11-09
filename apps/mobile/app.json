@@ -2,7 +2,7 @@
   "expo": {
     "name": "FinTrack",
     "slug": "fintrack",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "scheme": "fintrack",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,7 +24,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.fintrack.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "USE_BIOMETRIC",
         "USE_FINGERPRINT"
