@@ -72,8 +72,11 @@ func main() {
 	accountService := services.NewAccountService(database.Pool)
 	accountHandler := handlers.NewAccountHandler(accountService)
 
+	billService := services.NewBillService(database.Pool)
+	billHandler := handlers.NewBillHandler(billService)
+
 	// Routes
-	routes.Setup(app, cfg.JWTSecret, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler, accountHandler)
+	routes.Setup(app, cfg.JWTSecret, authHandler, transactionHandler, dashboardHandler, budgetHandler, reportHandler, accountHandler, billHandler)
 
 	// Graceful shutdown
 	go func() {

@@ -455,7 +455,20 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 	}
 	defer tx.Rollback(ctx)
 
-	// Delete in reverse order of dependency
+	// Delete in reverse order of dependency. Bills go first; their payments
+	// go with them.
+	if _, err := tx.Exec(ctx, `DELETE FROM bills WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete bills",
+		})
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE users SET pay_schedule = NULL, savings_per_payday = 0, updated_at = NOW() WHERE id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to reset pay settings",
+		})
+	}
+
 	if _, err := tx.Exec(ctx, `DELETE FROM transactions WHERE user_id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to delete transactions",

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -87,6 +89,11 @@ func (h *TransactionHandler) Create(c *fiber.Ctx) error {
 	}
 
 	t, err := h.service.Create(c.Context(), userID, req)
+	if errors.Is(err, services.ErrInsufficientBalance) {
+		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to create transaction",

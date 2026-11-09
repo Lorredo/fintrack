@@ -11,7 +11,7 @@ import (
 	"github.com/Lorredo/fintrack/api/internal/middleware"
 )
 
-func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler) {
+func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, transactionHandler *handlers.TransactionHandler, dashboardHandler *handlers.DashboardHandler, budgetHandler *handlers.BudgetHandler, reportHandler *handlers.ReportHandler, accountHandler *handlers.AccountHandler, billHandler *handlers.BillHandler) {
 	api := app.Group("/api/v1")
 	authRequired := middleware.AuthRequired(jwtSecret)
 
@@ -55,6 +55,21 @@ func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, 
 	// Dashboard routes (protected)
 	dashboard := api.Group("/dashboard", authRequired)
 	dashboard.Get("/summary", dashboardHandler.Summary)
+	dashboard.Get("/safe-to-spend", billHandler.SafeToSpend)
+
+	// Bill routes (protected)
+	bills := api.Group("/bills", authRequired)
+	bills.Get("/", billHandler.List)
+	bills.Post("/", billHandler.Create)
+	bills.Put("/:id", billHandler.Update)
+	bills.Delete("/:id", billHandler.Delete)
+	bills.Post("/:id/pay", billHandler.Pay)
+	bills.Post("/:id/skip", billHandler.Skip)
+
+	// Payday and savings settings (protected)
+	settings := api.Group("/settings", authRequired)
+	settings.Get("/", billHandler.GetSettings)
+	settings.Put("/", billHandler.UpdateSettings)
 
 	// Budget routes (protected)
 	budgets := api.Group("/budgets", authRequired)

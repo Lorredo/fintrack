@@ -9,6 +9,8 @@ type Account struct {
 	Type      string    `json:"type"`
 	Color     string    `json:"color"`
 	Balance   float64   `json:"balance"`
+	// False for wallets such as savings, which Safe to Spend leaves out.
+	InSafeToSpend bool `json:"inSafeToSpend"`
 	// Null until the wallet's balance has been updated.
 	LastAdjustedAt *time.Time `json:"lastAdjustedAt"`
 	CreatedAt      time.Time  `json:"createdAt"`
@@ -19,12 +21,15 @@ type CreateAccountRequest struct {
 	Name  string `json:"name" validate:"required"`
 	Type  string `json:"type" validate:"required,oneof=cash bank ewallet investment"`
 	Color string `json:"color" validate:"required,hexcolor"`
+	// Defaults to true when left out.
+	InSafeToSpend *bool `json:"inSafeToSpend,omitempty"`
 }
 
 type UpdateAccountRequest struct {
 	Name  string  `json:"name,omitempty"`
 	Type  string  `json:"type,omitempty" validate:"omitempty,oneof=cash bank ewallet investment"`
 	Color *string `json:"color,omitempty" validate:"omitempty,hexcolor"`
+	InSafeToSpend *bool `json:"inSafeToSpend,omitempty"`
 }
 
 type SetBalanceRequest struct {

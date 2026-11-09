@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -15,6 +16,9 @@ import (
 type TransactionService struct {
 	db database.Querier
 }
+
+// ErrInsufficientBalance means the wallet can't cover the expense or transfer.
+var ErrInsufficientBalance = errors.New("Insufficient balance in this wallet")
 
 func NewTransactionService(db database.Querier) *TransactionService {
 	if db == nil {
@@ -135,13 +139,19 @@ func (s *TransactionService) Get(ctx context.Context, id, userID string) (*model
 }
 
 func (s *TransactionService) Create(ctx context.Context, userID string, req models.CreateTransactionRequest) (*models.Transaction, error) {
+	return CreateTransaction(ctx, s.db, userID, req)
+}
+
+// CreateTransaction saves a transaction with q, which can be a database
+// transaction, so another write (such as a bill payment) commits with it.
+func CreateTransaction(ctx context.Context, q database.Querier, userID string, req models.CreateTransactionRequest) (*models.Transaction, error) {
 	if req.Fee > 0 && req.Type != models.TransactionTypeTransfer {
 		return nil, fmt.Errorf("only transfers can have a fee")
 	}
 
 	if req.Type == "expense" || req.Type == "transfer" {
 		var balance float64
-		err := s.db.QueryRow(ctx, `
+		err := q.QueryRow(ctx, `
 			SELECT COALESCE(SUM(
 				CASE 
 					WHEN type IN ('income', 'adjust_in') AND account_id = $2 THEN amount 
@@ -158,7 +168,7 @@ func (s *TransactionService) Create(ctx context.Context, userID string, req mode
 		}
 		
 		if req.Amount+req.Fee > balance {
-			return nil, fmt.Errorf("insufficient balance in source account")
+			return nil, ErrInsufficientBalance
 		}
 	}
 
@@ -177,7 +187,7 @@ func (s *TransactionService) Create(ctx context.Context, userID string, req mode
 
 	var t models.Transaction
 	var dateTime time.Time
-	err := s.db.QueryRow(ctx, query, args...).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
+	err := q.QueryRow(ctx, query, args...).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
 
 	if err != nil {
 		return nil, err

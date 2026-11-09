@@ -27,7 +27,7 @@ func NewAccountService(db database.Querier) *AccountService {
 func (s *AccountService) List(ctx context.Context, userID string) ([]models.Account, error) {
 	query := `
 		SELECT 
-			a.id, a.user_id, a.name, a.type, a.color, a.created_at, a.updated_at,
+			a.id, a.user_id, a.name, a.type, a.color, a.in_safe_to_spend, a.created_at, a.updated_at,
 			COALESCE(
 				SUM(
 					CASE 
@@ -55,7 +55,7 @@ func (s *AccountService) List(ctx context.Context, userID string) ([]models.Acco
 	accounts := make([]models.Account, 0)
 	for rows.Next() {
 		var a models.Account
-		if err := rows.Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.CreatedAt, &a.UpdatedAt, &a.Balance, &a.LastAdjustedAt); err != nil {
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.InSafeToSpend, &a.CreatedAt, &a.UpdatedAt, &a.Balance, &a.LastAdjustedAt); err != nil {
 			return nil, err
 		}
 		accounts = append(accounts, a)
@@ -120,12 +120,17 @@ func (s *AccountService) SetBalance(ctx context.Context, id, userID string, req 
 }
 
 func (s *AccountService) Create(ctx context.Context, userID string, req models.CreateAccountRequest) (*models.Account, error) {
+	inSafeToSpend := true
+	if req.InSafeToSpend != nil {
+		inSafeToSpend = *req.InSafeToSpend
+	}
+
 	var a models.Account
 	err := s.db.QueryRow(
 		ctx,
-		`INSERT INTO accounts (user_id, name, type, color) VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, type, color, created_at, updated_at`,
-		userID, req.Name, req.Type, req.Color,
-	).Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.CreatedAt, &a.UpdatedAt)
+		`INSERT INTO accounts (user_id, name, type, color, in_safe_to_spend) VALUES ($1, $2, $3, $4, $5) RETURNING id, user_id, name, type, color, in_safe_to_spend, created_at, updated_at`,
+		userID, req.Name, req.Type, req.Color, inSafeToSpend,
+	).Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.InSafeToSpend, &a.CreatedAt, &a.UpdatedAt)
 
 	if err != nil {
 		return nil, err
@@ -153,6 +158,11 @@ func (s *AccountService) Update(ctx context.Context, id, userID string, req mode
 		args = append(args, *req.Color)
 		argIdx++
 	}
+	if req.InSafeToSpend != nil {
+		setClauses = append(setClauses, fmt.Sprintf("in_safe_to_spend = $%d", argIdx))
+		args = append(args, *req.InSafeToSpend)
+		argIdx++
+	}
 
 	if len(setClauses) == 0 {
 		return nil, fmt.Errorf("no fields to update")
@@ -162,12 +172,12 @@ func (s *AccountService) Update(ctx context.Context, id, userID string, req mode
 	args = append(args, id, userID)
 
 	query := fmt.Sprintf(
-		`UPDATE accounts SET %s WHERE id = $%d AND user_id = $%d RETURNING id, user_id, name, type, color, created_at, updated_at`,
+		`UPDATE accounts SET %s WHERE id = $%d AND user_id = $%d RETURNING id, user_id, name, type, color, in_safe_to_spend, created_at, updated_at`,
 		joinStrings(setClauses, ", "), argIdx, argIdx+1,
 	)
 
 	var a models.Account
-	err := s.db.QueryRow(ctx, query, args...).Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.CreatedAt, &a.UpdatedAt)
+	err := s.db.QueryRow(ctx, query, args...).Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Color, &a.InSafeToSpend, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

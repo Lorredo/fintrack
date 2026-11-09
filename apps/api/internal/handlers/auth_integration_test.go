@@ -85,6 +85,7 @@ func setup(t *testing.T) *env {
 		handlers.NewBudgetHandler(services.NewBudgetService(pool)),
 		handlers.NewReportHandler(services.NewReportService(pool)),
 		handlers.NewAccountHandler(services.NewAccountService(pool)),
+		handlers.NewBillHandler(services.NewBillService(pool)),
 	)
 	return &env{app: app, key: key}
 }
