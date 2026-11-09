@@ -13,6 +13,8 @@ interface TransactionFormProps {
   transaction?: Transaction | null;
   initialType?: TransactionType;
   initialAccountId?: string;
+  /** Values read from a receipt, shown for the user to check. Ignored when editing. */
+  prefill?: { amount?: string; date?: string; description?: string; category?: string };
   onTypeChange?: (type: TransactionType) => void;
   onSubmit: (data: CreateTransactionInput | UpdateTransactionInput) => void;
   onCancel: () => void;
@@ -55,6 +57,7 @@ export default function TransactionForm({
   transaction,
   initialType = 'expense',
   initialAccountId,
+  prefill,
   onTypeChange,
   onSubmit,
   onCancel,
@@ -67,18 +70,19 @@ export default function TransactionForm({
   const [type, setType] = useState<TransactionType>(
     transaction?.type || initialType,
   );
+  const fromReceipt = !transaction ? prefill : undefined;
   const [amount, setAmount] = useState(
-    transaction ? String(transaction.amount) : '',
+    transaction ? String(transaction.amount) : fromReceipt?.amount ?? '',
   );
-  const [selectedPill, setSelectedPill] = useState(transaction?.category || '');
+  const [selectedPill, setSelectedPill] = useState(transaction?.category || fromReceipt?.category || '');
   const [customCategory, setCustomCategory] = useState('');
   const [transferFee, setTransferFee] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
   const [description, setDescription] = useState(
-    transaction?.description || '',
+    transaction?.description || fromReceipt?.description || '',
   );
   const [date, setDate] = useState(
-    transaction?.date || getLocalISODate(),
+    transaction?.date || fromReceipt?.date || getLocalISODate(),
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -213,6 +217,15 @@ export default function TransactionForm({
 
   return (
     <View className="gap-lg">
+      {fromReceipt && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12 }}>
+          <MaterialCommunityIcons name="receipt-text-check-outline" size={20} color="#2563EB" />
+          <Text style={{ flex: 1, fontSize: 13, color: '#1E3A8A' }}>
+            Filled in from your receipt. Check the amount, date and category before saving.
+          </Text>
+        </View>
+      )}
+
       {/* Type selector */}
       {initialType !== 'transfer' && transaction?.type !== 'transfer' && (
         <View className="flex-row gap-sm mb-xs">

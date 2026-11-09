@@ -38,6 +38,22 @@
       "expo-status-bar",
       "expo-local-authentication",
       [
+        "expo-sharing",
+        {
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["image/*"]
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#2563EB"
@@ -62,7 +78,6 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-sharing",
       "expo-secure-store"
     ],
     "extra": {
