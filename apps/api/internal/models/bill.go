@@ -85,6 +85,8 @@ type RegularIncome struct {
 	Day     int    `json:"day,omitempty" validate:"min=0,max=31"`
 	Nth     int    `json:"nth,omitempty" validate:"min=0,max=5"`
 	Weekday int    `json:"weekday" validate:"min=0,max=6"`
+	// The wallet it lands in; nil means the salary's wallet.
+	AccountID *string `json:"accountId,omitempty"`
 }
 
 // ExpectedIncome is one regular income due in the current pay period.
@@ -104,6 +106,8 @@ type PaySettings struct {
 	// Share of income above the salary (overtime, bonuses) that goes to savings.
 	ExtraToSavingsPercent int             `json:"extraToSavingsPercent"`
 	RegularIncomes        []RegularIncome `json:"regularIncomes"`
+	// The wallet the salary lands in, for Record pay.
+	SalaryAccountID *string `json:"salaryAccountId"`
 }
 
 type UpdatePaySettingsRequest struct {
@@ -115,6 +119,46 @@ type UpdatePaySettingsRequest struct {
 	ExtraToSavingsPercent *int `json:"extraToSavingsPercent,omitempty" validate:"omitempty,oneof=0 50 100"`
 	// The whole list; an empty list removes them all.
 	RegularIncomes *[]RegularIncome `json:"regularIncomes,omitempty" validate:"omitempty,max=10,dive"`
+	// An empty string removes the wallet.
+	SalaryAccountID *string `json:"salaryAccountId,omitempty"`
+}
+
+const (
+	PayItemSalary    = "salary"
+	PayItemAllowance = "allowance"
+)
+
+// PayItem is one salary or allowance due on a date, for Record pay.
+type PayItem struct {
+	// "salary", or "income:" plus the allowance's name in lower case.
+	Key       string  `json:"key"`
+	Name      string  `json:"name"`
+	Kind      string  `json:"kind"`
+	Amount    float64 `json:"amount"`
+	Date      string  `json:"date"`
+	AccountID *string `json:"accountId"`
+}
+
+type PendingPay struct {
+	// Due today or earlier this period and not yet recorded.
+	Pending []PayItem `json:"pending"`
+	// Due after today, this period and the next, for reminders.
+	Upcoming []PayItem `json:"upcoming"`
+}
+
+type RecordPayRequest struct {
+	Key     string `json:"key" validate:"required,max=120"`
+	PayDate string `json:"payDate" validate:"required,datetime=2006-01-02"`
+	// Defaults to the item's amount and wallet.
+	Amount    *float64 `json:"amount,omitempty" validate:"omitempty,gt=0"`
+	AccountID *string  `json:"accountId,omitempty"`
+	// The day the money arrived, for the income.
+	Date string `json:"date" validate:"required,datetime=2006-01-02"`
+}
+
+type SkipPayRequest struct {
+	Key     string `json:"key" validate:"required,max=120"`
+	PayDate string `json:"payDate" validate:"required,datetime=2006-01-02"`
 }
 
 type ReservedBill struct {

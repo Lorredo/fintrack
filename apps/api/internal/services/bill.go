@@ -25,6 +25,7 @@ var (
 	ErrBillNeedsWallet  = errors.New("Choose a wallet to pay this bill from")
 	ErrNothingToUpdate  = errors.New("No fields to update")
 	ErrBadRegularIncome = errors.New("Each regular income needs a day of the month (1-31), or which weekday (first to last)")
+	ErrDuplicateIncome  = errors.New("Each regular income needs its own name")
 	errNoTransactionAPI = errors.New("database does not support transactions")
 )
 
@@ -429,13 +430,13 @@ func (s *BillService) Skip(ctx context.Context, userID, id string, req models.Sk
 	return tx.Commit(ctx)
 }
 
-const settingsColumns = `pay_schedule, savings_per_payday, bill_reminders, salary_per_payday, extra_to_savings_percent, regular_incomes`
+const settingsColumns = `pay_schedule, savings_per_payday, bill_reminders, salary_per_payday, extra_to_savings_percent, regular_incomes, salary_account_id`
 
 func scanSettings(row pgx.Row) (*models.PaySettings, error) {
 	var settings models.PaySettings
 	var incomes []byte
 	err := row.Scan(&settings.PaySchedule, &settings.SavingsPerPayday, &settings.BillReminders,
-		&settings.SalaryPerPayday, &settings.ExtraToSavingsPercent, &incomes)
+		&settings.SalaryPerPayday, &settings.ExtraToSavingsPercent, &incomes, &settings.SalaryAccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -452,8 +453,18 @@ func scanSettings(row pgx.Row) (*models.PaySettings, error) {
 // others, so stored items are unambiguous.
 func cleanRegularIncomes(incomes []models.RegularIncome) ([]models.RegularIncome, error) {
 	cleaned := make([]models.RegularIncome, 0, len(incomes))
+	names := make(map[string]bool)
 	for _, income := range incomes {
 		income.Name = strings.TrimSpace(income.Name)
+		// The name keys its Record pay history, so it must be unique.
+		if key := regularIncomeKey(income.Name); names[key] {
+			return nil, ErrDuplicateIncome
+		} else {
+			names[key] = true
+		}
+		if income.AccountID != nil && *income.AccountID == "" {
+			income.AccountID = nil
+		}
 		switch income.Kind {
 		case models.RegularIncomeByDay:
 			if income.Day < 1 || income.Day > 31 {
@@ -485,7 +496,19 @@ func (s *BillService) UpdateSettings(ctx context.Context, userID string, req mod
 		if err != nil {
 			return nil, err
 		}
+		for _, income := range cleaned {
+			if income.AccountID != nil {
+				if err := ownsWallet(ctx, s.db, userID, *income.AccountID); err != nil {
+					return nil, err
+				}
+			}
+		}
 		if incomes, err = json.Marshal(cleaned); err != nil {
+			return nil, err
+		}
+	}
+	if req.SalaryAccountID != nil && *req.SalaryAccountID != "" {
+		if err := ownsWallet(ctx, s.db, userID, *req.SalaryAccountID); err != nil {
 			return nil, err
 		}
 	}
@@ -502,10 +525,15 @@ func (s *BillService) UpdateSettings(ctx context.Context, userID string, req mod
 			salary_per_payday = COALESCE($5::numeric, salary_per_payday),
 			extra_to_savings_percent = COALESCE($6::smallint, extra_to_savings_percent),
 			regular_incomes = COALESCE($7::jsonb, regular_incomes),
+			salary_account_id = CASE
+				WHEN $8::text IS NULL THEN salary_account_id
+				WHEN $8::text = '' THEN NULL
+				ELSE $8::uuid
+			END,
 			updated_at = NOW()
 		 WHERE id = $1
 		 RETURNING `+settingsColumns,
-		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders, req.SalaryPerPayday, req.ExtraToSavingsPercent, incomesParam,
+		userID, req.PaySchedule, req.SavingsPerPayday, req.BillReminders, req.SalaryPerPayday, req.ExtraToSavingsPercent, incomesParam, req.SalaryAccountID,
 	))
 }
 

@@ -89,6 +89,12 @@ func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, 
 	settings.Get("/", billHandler.GetSettings)
 	settings.Put("/", billHandler.UpdateSettings)
 
+	// Record pay: one tap to add the salary and allowances (protected)
+	pay := api.Group("/pay", authRequired)
+	pay.Get("/pending", billHandler.PendingPay)
+	pay.Post("/record", billHandler.RecordPay)
+	pay.Post("/skip", billHandler.SkipPay)
+
 	// Budget routes (protected)
 	budgets := api.Group("/budgets", authRequired)
 	budgets.Post("/rebalance", budgetHandler.Rebalance)

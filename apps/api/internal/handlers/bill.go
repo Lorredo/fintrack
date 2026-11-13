@@ -67,10 +67,12 @@ func billError(c *fiber.Ctx, err error, fallback string) error {
 		return finish(respond(c, fiber.StatusNotFound, services.ErrBillNotFound.Error()))
 	case errors.Is(err, services.ErrWalletNotFound):
 		return finish(respond(c, fiber.StatusNotFound, err.Error()))
-	case errors.Is(err, services.ErrBillAlreadyPaid):
+	case errors.Is(err, services.ErrBillAlreadyPaid), errors.Is(err, services.ErrPayAlreadyRecorded):
 		return finish(respond(c, fiber.StatusConflict, err.Error()))
 	case errors.Is(err, services.ErrNotADueDate), errors.Is(err, services.ErrBillNeedsWallet),
-		errors.Is(err, services.ErrNothingToUpdate), errors.Is(err, services.ErrBadRegularIncome):
+		errors.Is(err, services.ErrNothingToUpdate), errors.Is(err, services.ErrBadRegularIncome),
+		errors.Is(err, services.ErrDuplicateIncome), errors.Is(err, services.ErrNotAPayItem),
+		errors.Is(err, services.ErrPayNeedsWallet):
 		return finish(respond(c, fiber.StatusBadRequest, err.Error()))
 	case errors.Is(err, services.ErrInsufficientBalance):
 		return finish(respond(c, fiber.StatusUnprocessableEntity, err.Error()))
@@ -187,4 +189,39 @@ func (h *BillHandler) SafeToSpend(c *fiber.Ctx) error {
 		return billError(c, err, "Failed to work out Safe to Spend")
 	}
 	return c.JSON(fiber.Map{"data": result})
+}
+
+func (h *BillHandler) PendingPay(c *fiber.Ctx) error {
+	today, err := parseToday(c)
+	if err != nil {
+		return finish(err)
+	}
+	result, err := h.service.PendingPay(c.Context(), userIDOf(c), today)
+	if err != nil {
+		return billError(c, err, "Failed to fetch pay to record")
+	}
+	return c.JSON(fiber.Map{"data": result})
+}
+
+func (h *BillHandler) RecordPay(c *fiber.Ctx) error {
+	var req models.RecordPayRequest
+	if err := parseBody(c, &req); err != nil {
+		return finish(err)
+	}
+	transaction, err := h.service.RecordPay(c.Context(), userIDOf(c), req)
+	if err != nil {
+		return billError(c, err, "Failed to record pay")
+	}
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"message": "Pay recorded", "data": transaction})
+}
+
+func (h *BillHandler) SkipPay(c *fiber.Ctx) error {
+	var req models.SkipPayRequest
+	if err := parseBody(c, &req); err != nil {
+		return finish(err)
+	}
+	if err := h.service.SkipPay(c.Context(), userIDOf(c), req); err != nil {
+		return billError(c, err, "Failed to mark pay")
+	}
+	return c.JSON(fiber.Map{"message": "Pay marked as added"})
 }

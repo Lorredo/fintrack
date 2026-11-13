@@ -470,13 +470,19 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 		})
 	}
 
+	if _, err := tx.Exec(ctx, `DELETE FROM pay_records WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete recorded pay",
+		})
+	}
+
 	if _, err := tx.Exec(ctx, `DELETE FROM bills WHERE user_id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to delete bills",
 		})
 	}
 
-	if _, err := tx.Exec(ctx, `UPDATE users SET pay_schedule = NULL, savings_per_payday = 0, salary_per_payday = 0, extra_to_savings_percent = 50, regular_incomes = '[]'::jsonb, updated_at = NOW() WHERE id = $1`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE users SET pay_schedule = NULL, savings_per_payday = 0, salary_per_payday = 0, extra_to_savings_percent = 50, regular_incomes = '[]'::jsonb, salary_account_id = NULL, updated_at = NOW() WHERE id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to reset pay settings",
 		})
