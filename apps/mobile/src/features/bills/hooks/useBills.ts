@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 
 import { getLocalISODate } from '@/shared/utils/categories';
 import { BillApi } from '../api/bills.api';
-import type { CreateBillInput, PayBillInput, PaySettings, SkipBillInput, UpdateBillInput } from '../types';
+import type { CreateBillInput, PayBillInput, PaySettings, RecordPayInput, SkipBillInput, UpdateBillInput } from '../types';
 
 export const BILL_KEYS = {
   all: ['bills'] as const,
@@ -10,6 +10,8 @@ export const BILL_KEYS = {
   // Under 'dashboard', so anything that refreshes the dashboard refreshes this.
   safeToSpend: (today: string) => ['dashboard', 'safe-to-spend', today] as const,
   settings: ['settings', 'pay'] as const,
+  // Under 'dashboard' too, so adding or deleting a transaction refreshes it.
+  pendingPay: (today: string) => ['dashboard', 'pay-pending', today] as const,
 };
 
 function refreshBills(queryClient: QueryClient) {
@@ -36,6 +38,30 @@ export function useSafeToSpend() {
   return useQuery({
     queryKey: BILL_KEYS.safeToSpend(today),
     queryFn: () => BillApi.safeToSpend(today),
+  });
+}
+
+export function usePendingPay() {
+  const today = getLocalISODate();
+  return useQuery({
+    queryKey: BILL_KEYS.pendingPay(today),
+    queryFn: () => BillApi.pendingPay(today),
+  });
+}
+
+export function useRecordPay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RecordPayInput) => BillApi.recordPay(input),
+    onSuccess: () => refreshAfterPayment(queryClient),
+  });
+}
+
+export function useSkipPay() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { key: string; payDate: string }) => BillApi.skipPay(input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
   });
 }
 

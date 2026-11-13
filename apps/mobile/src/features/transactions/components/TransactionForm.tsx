@@ -34,6 +34,7 @@ const EXPENSE_CATEGORIES = [
 
 const INCOME_CATEGORIES = [
   'Salary',
+  'Allowance',
   'Freelance',
   'Investment',
   'Bonus & Commission',

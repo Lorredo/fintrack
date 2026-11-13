@@ -63,6 +63,8 @@ export interface RegularIncome {
   nth?: number;
   /** 0 is Sunday. */
   weekday?: number;
+  /** The wallet it lands in; null or missing means the salary's wallet. */
+  accountId?: string | null;
 }
 
 export interface ExpectedIncome {
@@ -80,6 +82,8 @@ export interface PaySettings {
   /** Share of income above the salary (overtime, bonuses) that goes to savings. */
   extraToSavingsPercent: 0 | 50 | 100;
   regularIncomes: RegularIncome[];
+  /** The wallet the salary lands in, for Record pay. Send '' to clear it. */
+  salaryAccountId: string | null;
 }
 
 export interface ReservedBill {
@@ -127,4 +131,30 @@ export interface SafeToSpend {
   spendingMoney: number;
   spentSincePayday: number;
   plannedLeft: number;
+}
+
+/** A salary or allowance due on a date, for Record pay. */
+export interface PayItem {
+  /** 'salary', or 'income:' plus the allowance's name in lower case. */
+  key: string;
+  name: string;
+  kind: 'salary' | 'allowance';
+  amount: number;
+  date: string;
+  accountId: string | null;
+}
+
+export interface PendingPay {
+  /** Due today or earlier this pay period, not yet recorded. */
+  pending: PayItem[];
+  /** Due after today, this period and the next. */
+  upcoming: PayItem[];
+}
+
+export interface RecordPayInput {
+  key: string;
+  payDate: string;
+  date: string;
+  amount?: number;
+  accountId?: string;
 }

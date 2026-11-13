@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Button, Input, Loader, Screen } from '@/components/ui';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import { useToast } from '@/features/toast/hooks/useToast';
 import { getErrorMessage } from '@/shared/utils/apiErrors';
 import { ChoicePills } from '../components/ChoicePills';
@@ -29,6 +30,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   const router = useRouter();
   const toast = useToast();
   const updateSettings = useUpdatePaySettings();
+  const { data: accounts } = useAccounts();
 
   const [paySchedule, setPaySchedule] = useState<PaySchedule | null>(settings.paySchedule ?? 'semi_monthly');
   const [savings, setSavings] = useState(settings.savingsPerPayday > 0 ? String(settings.savingsPerPayday) : '');
@@ -36,6 +38,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   const [salary, setSalary] = useState(settings.salaryPerPayday > 0 ? String(settings.salaryPerPayday) : '');
   const [extraToSavings, setExtraToSavings] = useState(settings.extraToSavingsPercent ?? 50);
   const [regularIncomes, setRegularIncomes] = useState<RegularIncome[]>(settings.regularIncomes ?? []);
+  const [salaryAccountId, setSalaryAccountId] = useState<string | null>(settings.salaryAccountId ?? null);
   // null: closed. -1: adding. Otherwise the index being edited.
   const [editingIncome, setEditingIncome] = useState<number | null>(null);
 
@@ -56,6 +59,8 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         extraToSavingsPercent: extraToSavings,
         regularIncomes,
         billReminders,
+        // '' clears it.
+        salaryAccountId: salaryAccountId ?? '',
       },
       {
         onSuccess: () => {
@@ -93,6 +98,25 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         </Text>
       </View>
 
+      {(parsedSalary > 0 || regularIncomes.length > 0) && (accounts?.length ?? 0) > 0 && (
+        <View style={{ gap: 6 }}>
+          <ChoicePills
+            label={isIrregular || parsedSalary === 0 ? 'Pay goes to' : 'Salary goes to'}
+            choices={[
+              { value: null as string | null, label: 'Ask me' },
+              ...(accounts ?? []).map((account) => ({ value: account.id as string | null, label: account.name })),
+            ]}
+            value={salaryAccountId}
+            onChange={setSalaryAccountId}
+          />
+          <Text className="text-sm text-text-secondary">
+            {isIrregular || parsedSalary === 0
+              ? 'When an allowance arrives, FinTrack asks you to record it here in one tap, unless you choose another wallet for it.'
+              : 'On payday, FinTrack asks you to record your salary here in one tap.'}
+          </Text>
+        </View>
+      )}
+
       <View style={{ gap: 8 }}>
         <Text className="text-sm font-medium text-text">Other regular income</Text>
         <Text className="text-sm text-text-secondary">
@@ -109,7 +133,10 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
             <MaterialCommunityIcons name="cash-multiple" size={20} color="#059669" />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontWeight: '600', color: '#111827' }}>{income.name}</Text>
-              <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{describeRegularIncome(income)}</Text>
+              <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+                {describeRegularIncome(income)}
+                {income.accountId ? ` · ${accounts?.find((account) => account.id === income.accountId)?.name ?? 'Wallet'}` : ''}
+              </Text>
             </View>
             <Text style={{ fontSize: 15, fontWeight: '700', color: '#111827' }}>{formatCurrency(income.amount)}</Text>
           </Pressable>
@@ -161,8 +188,8 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1 }}>
-          <Text className="text-sm font-medium text-text">Bill reminders</Text>
-          <Text className="text-sm text-text-secondary mt-1">A notification before each bill is due.</Text>
+          <Text className="text-sm font-medium text-text">Reminders</Text>
+          <Text className="text-sm text-text-secondary mt-1">A notification before each bill is due, and on payday.</Text>
         </View>
         <Switch
           value={billReminders}
@@ -172,7 +199,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
           }}
           trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
           thumbColor={billReminders ? '#2563EB' : '#F9FAFB'}
-          accessibilityLabel="Bill reminders"
+          accessibilityLabel="Reminders"
         />
       </View>
 

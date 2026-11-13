@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { Button, Input, Modal } from '@/components/ui';
+import { useAccounts } from '@/features/accounts/hooks/useAccounts';
 import type { RegularIncome } from '../types';
 import { describeRegularIncome } from '../utils/billLabels';
 import { ChoicePills } from './ChoicePills';
@@ -47,7 +48,9 @@ function RegularIncomeForm({ income, onSave, onRemove }: FormProps) {
   const [day, setDay] = useState(String(income?.day ?? 15));
   const [nth, setNth] = useState(income?.nth ?? 1);
   const [weekday, setWeekday] = useState(income?.weekday ?? 5);
+  const [accountId, setAccountId] = useState<string | null>(income?.accountId ?? null);
   const [errors, setErrors] = useState<{ name?: string; amount?: string; day?: string }>({});
+  const { data: accounts } = useAccounts();
 
   const parsedAmount = Number(amount);
   const parsedDay = Number(day);
@@ -60,7 +63,7 @@ function RegularIncomeForm({ income, onSave, onRemove }: FormProps) {
     if (kind === 'day' && !(Number.isInteger(parsedDay) && parsedDay >= 1 && parsedDay <= 31)) nextErrors.day = 'Enter a day from 1 to 31';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    onSave({ ...preview, name: name.trim(), amount: Math.round(parsedAmount * 100) / 100 });
+    onSave({ ...preview, name: name.trim(), amount: Math.round(parsedAmount * 100) / 100, accountId });
   };
 
   return (
@@ -109,6 +112,18 @@ function RegularIncomeForm({ income, onSave, onRemove }: FormProps) {
         <Text className="text-sm text-text-secondary">
           {describeRegularIncome(preview)}. It counts as part of your expected pay for that pay period, like your salary.
         </Text>
+      )}
+
+      {(accounts?.length ?? 0) > 0 && (
+        <ChoicePills
+          label="Goes to"
+          choices={[
+            { value: null as string | null, label: 'Same as salary' },
+            ...(accounts ?? []).map((account) => ({ value: account.id as string | null, label: account.name })),
+          ]}
+          value={accountId}
+          onChange={setAccountId}
+        />
       )}
 
       <Button title={income ? 'Save' : 'Add Income'} onPress={handleSave} />

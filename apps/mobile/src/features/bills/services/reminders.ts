@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 import { formatCurrency } from '@/shared/utils/categories';
-import type { Bill } from '../types';
+import type { Bill, PayItem, PendingPay } from '../types';
 import type { Debt, Paluwagan } from '@/features/utang/types';
 
 // Reminders are local notifications scheduled on the phone, so they need no
@@ -13,7 +13,7 @@ const CHANNEL_ID = 'bills';
 const ID_PREFIX = 'bill-';
 // Every reminder FinTrack schedules starts with one of these, so a sync can
 // replace them all without touching anything else.
-const OWNED_PREFIXES = [ID_PREFIX, 'debt-', 'paluwagan-'];
+const OWNED_PREFIXES = [ID_PREFIX, 'debt-', 'paluwagan-', 'pay-'];
 const REMINDER_HOUR = 9;
 
 const isSupported = Platform.OS === 'android' || Platform.OS === 'ios';
@@ -162,6 +162,31 @@ export function planOtherReminders(debts: Debt[], paluwagans: Paluwagan[], now =
   return planned.filter((reminder) => reminder.date > now);
 }
 
+/** One payday reminder per date with pay to record, opening the Dashboard. */
+export function planPayReminders(pay: PendingPay | undefined, now = new Date()): PlannedReminder[] {
+  if (!pay) return [];
+  const byDate = new Map<string, PayItem[]>();
+  for (const item of [...pay.pending, ...pay.upcoming]) {
+    byDate.set(item.date, [...(byDate.get(item.date) ?? []), item]);
+  }
+  const planned: PlannedReminder[] = [];
+  for (const [date, items] of byDate) {
+    const salary = items.find((item) => item.kind === 'salary');
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    planned.push({
+      identifier: `pay-${date}`,
+      date: atReminderHour(date),
+      title: salary ? 'Payday! Record your salary' : `${items[0].name} is in`,
+      body:
+        items.length === 1
+          ? `${formatCurrency(total)} · Tap to record it in one tap`
+          : `${items.map((item) => item.name).join(' and ')} · ${formatCurrency(total)} · Tap to record`,
+      url: '/',
+    });
+  }
+  return planned.filter((reminder) => reminder.date > now);
+}
+
 async function cancelBillReminders() {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   await Promise.all(
@@ -180,6 +205,7 @@ export async function syncBillReminders(
   enabled: boolean,
   debts: Debt[] = [],
   paluwagans: Paluwagan[] = [],
+  pay?: PendingPay,
 ): Promise<void> {
   if (!isSupported) return;
   try {
@@ -189,7 +215,7 @@ export async function syncBillReminders(
     if (!granted) return;
     await ensureChannel();
 
-    for (const reminder of [...planReminders(bills), ...planOtherReminders(debts, paluwagans)]) {
+    for (const reminder of [...planReminders(bills), ...planOtherReminders(debts, paluwagans), ...planPayReminders(pay)]) {
       await Notifications.scheduleNotificationAsync({
         identifier: reminder.identifier,
         content: { title: reminder.title, body: reminder.body, data: { url: reminder.url ?? '/bills' } },

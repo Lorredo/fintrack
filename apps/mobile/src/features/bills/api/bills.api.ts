@@ -5,6 +5,8 @@ import type {
   CreateBillInput,
   PayBillInput,
   PaySettings,
+  PendingPay,
+  RecordPayInput,
   SafeToSpend,
   SkipBillInput,
   UpdateBillInput,
@@ -49,6 +51,20 @@ export const BillApi = {
   updateSettings: async (input: Partial<PaySettings>): Promise<PaySettings> => {
     const { data } = await api.put<{ data: PaySettings }>('/api/v1/settings', input);
     return data.data;
+  },
+
+  pendingPay: async (today: string): Promise<PendingPay> => {
+    const { data } = await api.get<{ data: PendingPay }>('/api/v1/pay/pending', { params: { today } });
+    return data.data;
+  },
+
+  recordPay: async (input: RecordPayInput): Promise<Transaction> => {
+    const { data } = await api.post<{ data: Transaction }>('/api/v1/pay/record', input);
+    return data.data;
+  },
+
+  skipPay: async (input: { key: string; payDate: string }): Promise<void> => {
+    await api.post('/api/v1/pay/skip', input);
   },
 
   safeToSpend: async (today: string): Promise<SafeToSpend> => {

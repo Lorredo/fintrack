@@ -12,6 +12,7 @@ import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useCurrentUser } from '@/features/auth/hooks/useCurrentUser';
 import { getGreeting, formatCurrency, formatMonth, getCategoryIcon, getLocalISODate } from '@/shared/utils/categories';
 import { WidgetSyncService } from '@/shared/services/widget-sync.service';
+import { PayToRecordCard } from '@/features/bills/components/PayToRecordCard';
 import { SafeToSpendCard } from '@/features/bills/components/SafeToSpendCard';
 import { UpcomingBills } from '@/features/bills/components/UpcomingBills';
 import type { Transaction } from '@/features/transactions/types';
@@ -168,6 +169,7 @@ export default function DashboardScreen() {
         </Pressable>
       </View>
 
+      <PayToRecordCard />
       <SafeToSpendCard />
 
       {/* Wallet Carousel */}
