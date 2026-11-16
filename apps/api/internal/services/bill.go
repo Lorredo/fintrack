@@ -630,7 +630,9 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 		reserve := func(list *[]models.ReservedBill, total *float64, due time.Time) {
 			*total += b.Amount
 			*list = append(*list, models.ReservedBill{
-				BillID: b.ID, Name: b.Name, DueDate: FormatDay(due), Amount: b.Amount, Overdue: due.Before(today),
+				BillID: b.ID, Name: b.Name, DueDate: FormatDay(due), Amount: b.Amount,
+				// A paid bill isn't overdue, even once its date has passed.
+				Overdue: due.Before(today) && !paid[b.ID][FormatDay(due)],
 			})
 		}
 

@@ -507,3 +507,35 @@ func TestRegularIncomeValidation(t *testing.T) {
 		t.Errorf("wipe left regularIncomes: %v", settings["regularIncomes"])
 	}
 }
+
+// Bills and paluwagan rounds paid this period still count toward it, but are
+// never shown as overdue.
+func TestPaidCommitmentsAreNotOverdue(t *testing.T) {
+	e := setup(t)
+	u := newUser(t, e)
+	gcash := u.wallet(t, "GCash", true)
+	u.transaction(t, map[string]interface{}{"accountId": gcash, "type": "income", "amount": 20000, "category": "Salary", "date": "2026-11-15"})
+	u.must(t, 200, "PUT", "/api/v1/settings", map[string]interface{}{"paySchedule": "semi_monthly", "salaryPerPayday": 14000})
+
+	paidBill := u.bill(t, "Internet", 1699, "2026-11-16", gcash)
+	u.bill(t, "Water", 450, "2026-11-17", gcash)
+	u.must(t, 201, "POST", "/api/v1/bills/"+paidBill+"/pay", map[string]interface{}{"dueDate": "2026-11-16", "date": "2026-11-16"})
+	palu := dataOf(t, u.must(t, 201, "POST", "/api/v1/paluwagans?today=2026-11-20", map[string]interface{}{
+		"name": "Office", "contribution": 1000, "frequency": "semi_monthly", "startDate": "2026-11-15",
+		"members": 5, "myTurn": 3, "accountId": gcash,
+	}))
+	u.must(t, 201, "POST", "/api/v1/paluwagans/"+palu["id"].(string)+"/contribute?today=2026-11-20", map[string]interface{}{"round": 1, "date": "2026-11-15"})
+
+	sts := dataOf(t, u.must(t, 200, "GET", "/api/v1/dashboard/safe-to-spend?today=2026-11-20", nil))
+	overdue := map[string]bool{}
+	for _, item := range sts["periodBills"].([]interface{}) {
+		bill := item.(map[string]interface{})
+		overdue[bill["name"].(string)] = bill["overdue"].(bool)
+	}
+	want := map[string]bool{"Internet": false, "Water": true, "Office · Round 1": false}
+	for name, flag := range want {
+		if got, ok := overdue[name]; !ok || got != flag {
+			t.Errorf("%s overdue = %v (listed %v), want %v; all: %v", name, got, ok, flag, overdue)
+		}
+	}
+}

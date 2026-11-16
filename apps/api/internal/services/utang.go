@@ -734,7 +734,7 @@ func commitmentsForPeriod(ctx context.Context, q database.Querier, userID string
 			}
 			item := models.ReservedBill{
 				BillID: g.p.ID, Name: fmt.Sprintf("%s · Round %d", g.p.Name, n), DueDate: FormatDay(due),
-				Amount: g.p.Contribution, Overdue: due.Before(today),
+				Amount: g.p.Contribution, Overdue: due.Before(today) && !contributed,
 			}
 			if !contributed {
 				unpaid = append(unpaid, item)
