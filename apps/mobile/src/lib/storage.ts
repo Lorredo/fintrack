@@ -65,4 +65,6 @@ export const StorageKeys = {
   RECENT_GOOGLE_ACCOUNTS: 'recent_google_accounts',
   AUTO_LOCK_TIMEOUT: 'FINTRACK_AUTOLOCK_TIMEOUT',
   QUERY_CACHE: 'query_cache',
+  // Transactions saved while offline, waiting to be sent.
+  TRANSACTION_OUTBOX: 'transaction_outbox',
 } as const;

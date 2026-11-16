@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 
 import { useIsOnline } from '@/shared/hooks/useIsOnline';
+import { useOutbox } from '@/features/transactions/offline/outbox';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -24,6 +26,9 @@ export function ConnectionBanner() {
   const queryClient = useQueryClient();
   const isFetching = useIsFetching() > 0;
   const [isSlow, setIsSlow] = useState(false);
+  const router = useRouter();
+  const pendingCount = useOutbox((state) => state.entries.filter((entry) => entry.status === 'pending').length);
+  const failedCount = useOutbox((state) => state.entries.filter((entry) => entry.status === 'failed').length);
 
   useEffect(() => {
     if (!isFetching || !isOnline) return;
@@ -51,7 +56,48 @@ export function ConnectionBanner() {
       >
         <MaterialCommunityIcons name="cloud-off-outline" size={16} color="#92400E" />
         <Text style={{ marginLeft: 8, fontSize: 13, color: '#92400E', flexShrink: 1 }}>
-          {savedAt > 0 ? `Offline · showing data from ${formatSavedAt(savedAt)}` : "You're offline"}
+          {pendingCount > 0
+            ? `You're offline · ${pendingCount} ${pendingCount === 1 ? 'change' : 'changes'} waiting to sync`
+            : savedAt > 0
+              ? `Offline · showing data from ${formatSavedAt(savedAt)}`
+              : "You're offline"}
+        </Text>
+      </View>
+    );
+  }
+
+  if (failedCount > 0) {
+    return (
+      <Pressable
+        onPress={() => router.push('/transactions')}
+        accessibilityRole="button"
+        className="active:opacity-70"
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#FEE2E2',
+          borderRadius: 10,
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          marginHorizontal: 20,
+          marginBottom: 8,
+        }}
+      >
+        <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#B91C1C" />
+        <Text style={{ marginLeft: 8, fontSize: 13, color: '#B91C1C', flex: 1 }}>
+          {failedCount} {failedCount === 1 ? "change couldn't" : "changes couldn't"} sync · Tap to review
+        </Text>
+        <MaterialCommunityIcons name="chevron-right" size={16} color="#B91C1C" />
+      </Pressable>
+    );
+  }
+
+  if (pendingCount > 0) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingBottom: 6 }}>
+        <MaterialCommunityIcons name="cloud-upload-outline" size={15} color="#6B7280" />
+        <Text style={{ marginLeft: 6, fontSize: 12, color: '#6B7280' }}>
+          {pendingCount} {pendingCount === 1 ? 'change' : 'changes'} waiting to sync
         </Text>
       </View>
     );

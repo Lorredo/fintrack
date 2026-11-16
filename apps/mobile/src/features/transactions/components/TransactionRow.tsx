@@ -1,13 +1,15 @@
 import { View, Text, Pressable } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { CategoryIcon } from '@/components/ui';
 import type { Account } from '@/features/accounts/types';
 import { formatCurrency, formatDate } from '@/shared/utils/categories';
+import type { ShownTransaction } from '../offline/outbox.logic';
 import type { Transaction } from '../types';
 import { getAmountDisplay, getWalletLabel } from '../utils/amountDisplay';
 
 interface TransactionRowProps {
-  transaction: Transaction;
+  transaction: ShownTransaction;
   accounts?: Account[];
   showDate?: boolean;
   onPress: (transaction: Transaction) => void;
@@ -54,6 +56,21 @@ export default function TransactionRow({ transaction, accounts, showDate = true,
           <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>
             {formatDate(transaction.date)}
           </Text>
+        )}
+        {transaction.syncStatus && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <MaterialCommunityIcons
+              name={transaction.syncStatus === 'failed' ? 'alert-circle-outline' : 'cloud-off-outline'}
+              size={13}
+              color={transaction.syncStatus === 'failed' ? '#DC2626' : '#B45309'}
+            />
+            <Text
+              style={{ fontSize: 12, fontWeight: '600', color: transaction.syncStatus === 'failed' ? '#DC2626' : '#B45309' }}
+              numberOfLines={1}
+            >
+              {transaction.syncStatus === 'failed' ? "Couldn't sync · tap to fix" : 'Waiting to sync'}
+            </Text>
+          </View>
         )}
       </View>
     </Pressable>

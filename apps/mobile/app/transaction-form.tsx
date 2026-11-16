@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/components/ui';
 import TransactionForm from '@/features/transactions/components/TransactionForm';
-import { useCreateTransaction, useUpdateTransaction } from '@/features/transactions/hooks/useTransactions';
+import { useCreateTransaction, useUpdateTransaction, type SaveResult } from '@/features/transactions/hooks/useTransactions';
 import { useUIStore } from '@/shared/store/ui.store';
 import type { CreateTransactionInput, UpdateTransactionInput } from '@/features/transactions/types';
 import { useToast } from '@/features/toast/hooks/useToast';
@@ -47,19 +47,20 @@ export default function TransactionFormScreen() {
     (data: CreateTransactionInput | UpdateTransactionInput) => {
       // The form stays open with what was entered, so it can be saved again.
       const onError = (err: unknown) => toast.error(getErrorMessage(err) || "Couldn't save the transaction");
+      const onSuccess = (result: SaveResult) => {
+        if (result.queued) toast.info("Saved on your phone. It will sync when you're back online.");
+        handleClose();
+      };
       if ('id' in data) {
-        updateMutation.mutate(data as UpdateTransactionInput, {
-          onSuccess: handleClose,
-          onError,
-        });
+        updateMutation.mutate(
+          { ...(data as UpdateTransactionInput), original: editingTransaction ?? undefined },
+          { onSuccess, onError },
+        );
       } else {
-        createMutation.mutate(data as CreateTransactionInput, {
-          onSuccess: handleClose,
-          onError,
-        });
+        createMutation.mutate(data as CreateTransactionInput, { onSuccess, onError });
       }
     },
-    [createMutation, updateMutation, handleClose, toast]
+    [createMutation, updateMutation, handleClose, toast, editingTransaction]
   );
 
   const getTitle = () => {

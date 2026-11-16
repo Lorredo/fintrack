@@ -1,4 +1,5 @@
 import { AuthApi } from '../api/auth.api';
+import { useOutbox } from '@/features/transactions/offline/outbox';
 import { useAuthStore } from '../store/auth.store';
 import { storage, StorageKeys } from '@/lib/storage';
 import { clearUserCache } from '@/lib/queryClient';
@@ -20,6 +21,9 @@ export class AuthService {
     // different person signs in.
     if (this.getSavedUserId() !== response.user.id) {
       clearUserCache();
+      // Unsynced changes are kept through an expired session, so the same
+      // person gets them back, but never handed to someone else.
+      useOutbox.getState().clear();
     }
 
     storage.set(StorageKeys.ACCESS_TOKEN, response.tokens.accessToken);
@@ -95,6 +99,8 @@ export class AuthService {
     storage.remove(StorageKeys.ACCESS_TOKEN);
     storage.remove(StorageKeys.REFRESH_TOKEN);
     clearUserCache();
+    // Signing out on purpose drops unsynced changes; the Me screen warns first.
+    useOutbox.getState().clear();
     // Reminders name the user's bills, so they shouldn't outlive the session.
     void clearBillReminders();
 

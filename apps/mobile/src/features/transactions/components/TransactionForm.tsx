@@ -8,6 +8,7 @@ import { useAccounts } from "@/features/accounts/hooks/useAccounts";
 import { useTransactionCategories } from '../hooks/useTransactions';
 import type { Transaction, CreateTransactionInput, UpdateTransactionInput, TransactionType } from '../types';
 import { findSimilarCategory, formatCurrency, getLocalISODate } from '@/shared/utils/categories';
+import { isOffline } from '@/shared/utils/apiErrors';
 
 interface TransactionFormProps {
   transaction?: Transaction | null;
@@ -177,6 +178,19 @@ export default function TransactionForm({
     }
     if (transferFee && (isNaN(Number(transferFee)) || Number(transferFee) < 0)) {
       newErrors.transferFee = 'Fee must be a valid amount';
+    }
+    // The server checks this when online; offline, check the wallet's balance
+    // here (it already includes unsynced changes) so the change can't fail later.
+    const wallet = accounts?.find((account) => account.id === accountId);
+    if (!newErrors.amount && isOffline() && wallet && (type === 'expense' || type === 'transfer')) {
+      const editingOut =
+        transaction && transaction.accountId === accountId && (transaction.type === 'expense' || transaction.type === 'transfer')
+          ? transaction.amount
+          : 0;
+      const leaving = Number(amount) + (type === 'transfer' ? Number(transferFee) || 0 : 0);
+      if (leaving > wallet.balance + editingOut + 0.004) {
+        newErrors.amount = 'Insufficient balance in this wallet';
+      }
     }
     const finalCategory = getFinalCategory();
     if (type !== 'transfer' && !finalCategory) {

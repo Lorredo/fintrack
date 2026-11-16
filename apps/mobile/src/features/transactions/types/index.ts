@@ -16,6 +16,8 @@ export interface Transaction {
 }
 
 export interface CreateTransactionInput {
+  /** Chosen on the phone, so a change saved offline is never added twice. */
+  id?: string;
   accountId: string;
   transferAccountId?: string;
   type: TransactionType;

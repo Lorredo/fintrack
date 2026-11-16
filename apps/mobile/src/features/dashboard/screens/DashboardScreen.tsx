@@ -7,6 +7,8 @@ import { Screen, Loader, Button, CategoryIcon, ExpandableFAB } from '@/component
 import { useAccounts } from "@/features/accounts/hooks/useAccounts";
 import TransactionDetailsModal from '@/features/transactions/components/TransactionDetailsModal';
 import TransactionRow from '@/features/transactions/components/TransactionRow';
+import { useOutboxEntries } from '@/features/transactions/hooks/useTransactions';
+import { applyOutbox, balanceDeltas, type ShownTransaction } from '@/features/transactions/offline/outbox.logic';
 import { useDashboardSummary } from '../hooks/useDashboard';
 import { useAuthStore } from '@/features/auth/store/auth.store';
 import { useCurrentUser } from '@/features/auth/hooks/useCurrentUser';
@@ -15,7 +17,6 @@ import { WidgetSyncService } from '@/shared/services/widget-sync.service';
 import { PayToRecordCard } from '@/features/bills/components/PayToRecordCard';
 import { SafeToSpendCard } from '@/features/bills/components/SafeToSpendCard';
 import { UpcomingBills } from '@/features/bills/components/UpcomingBills';
-import type { Transaction } from '@/features/transactions/types';
 import type { Budget } from '@/features/budgets/types';
 import type { Account } from '@/features/accounts/types';
 
@@ -42,11 +43,12 @@ export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const [activeWalletId, setActiveWalletId] = useState<string | undefined>(undefined);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<ShownTransaction | null>(null);
   const { data: accounts } = useAccounts();
   const { data: currentUser } = useCurrentUser();
   const month = getLocalISODate().slice(0, 7);
   const { data, isError, refetch, isRefetching } = useDashboardSummary(month, undefined);
+  const outbox = useOutboxEntries();
 
   // Sync data to native storage bridge for Home Screen Widgets
   useEffect(() => {
@@ -91,6 +93,16 @@ export default function DashboardScreen() {
   }
 
   const summary = data;
+  // Changes saved offline show in Recent and the total balance right away.
+  const recentTransactions = applyOutbox(summary.recentTransactions, outbox).slice(
+    0,
+    Math.max(summary.recentTransactions.length, 5),
+  );
+  let unsyncedBalance = 0;
+  balanceDeltas(outbox).forEach((delta) => {
+    unsyncedBalance += delta;
+  });
+  const totalBalance = Math.round((summary.balance + unsyncedBalance) * 100) / 100;
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'there';
 
   return (
@@ -186,9 +198,9 @@ export default function DashboardScreen() {
           {/* Card: All Wallets */}
           <WalletCard 
             title="Total Balance"
-            balance={summary.balance}
+            balance={totalBalance}
             icon="wallet-outline"
-            isPositive={summary.balance >= 0}
+            isPositive={totalBalance >= 0}
             subtitle="Across all wallets"
           />
 
@@ -363,7 +375,7 @@ export default function DashboardScreen() {
 
 
       {/* Recent Transactions */}
-      {summary.recentTransactions.length > 0 && (
+      {recentTransactions.length > 0 && (
         <View style={{ marginBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>Recent Transactions</Text>
@@ -372,7 +384,7 @@ export default function DashboardScreen() {
             </Pressable>
           </View>
           <View style={{ gap: 8 }}>
-            {summary.recentTransactions.map((transaction: Transaction) => (
+            {recentTransactions.map((transaction) => (
               <TransactionRow
                 key={transaction.id}
                 transaction={transaction}
@@ -386,7 +398,7 @@ export default function DashboardScreen() {
 
       {/* Empty State: the income and expense totals reset monthly, but recent
           transactions span all time, so only this means a brand-new user. */}
-      {summary.recentTransactions.length === 0 && (
+      {recentTransactions.length === 0 && (
         <View style={{ alignItems: 'center', paddingVertical: 40 }}>
           <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <MaterialCommunityIcons name="wallet-outline" size={36} color="#2563EB" />

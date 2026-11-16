@@ -1,15 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AccountApi } from '../api/accounts.api';
-import type { CreateAccountInput, SetBalanceInput, UpdateAccountInput } from '../types';
+import { useCallback } from 'react';
+
+import { useOutbox } from '@/features/transactions/offline/outbox';
+import { balanceDeltas } from '@/features/transactions/offline/outbox.logic';
+import type { Account, CreateAccountInput, SetBalanceInput, UpdateAccountInput } from '../types';
 
 export const ACCOUNT_KEYS = {
   all: ['accounts'] as const,
 };
 
 export function useAccounts() {
+  const entries = useOutbox((state) => state.entries);
+  // Wallet balances include changes saved offline that haven't synced yet.
+  const select = useCallback(
+    (accounts: Account[]) => {
+      if (entries.length === 0) return accounts;
+      const deltas = balanceDeltas(entries);
+      return accounts.map((account) => {
+        const delta = deltas.get(account.id);
+        return delta ? { ...account, balance: Math.round((account.balance + delta) * 100) / 100 } : account;
+      });
+    },
+    [entries],
+  );
   return useQuery({
     queryKey: ACCOUNT_KEYS.all,
     queryFn: () => AccountApi.list(),
+    select,
   });
 }
 

@@ -4,7 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Screen, Loader, EmptyState, Button, CategoryIcon, ExpandableFAB, Modal } from '@/components/ui';
-import { useTransactionList, useTransactionCategories } from '../hooks/useTransactions';
+import { useOutboxEntries, useTransactionList, useTransactionCategories } from '../hooks/useTransactions';
+import { applyOutbox } from '../offline/outbox.logic';
 import TransactionDetailsModal from '../components/TransactionDetailsModal';
 import TransactionRow from '../components/TransactionRow';
 import { useAccounts } from '@/features/accounts/hooks/useAccounts';
@@ -88,7 +89,22 @@ export default function TransactionListScreen() {
   }, [data?.data, page]);
 
   const transactions = page === 1 ? (data?.data ?? accumulatedTransactions) : accumulatedTransactions;
-  const sections = useMemo(() => groupByDate(transactions), [transactions]);
+  const outbox = useOutboxEntries();
+  const filterType = activeFilter === 'all' ? undefined : activeFilter;
+  // Changes saved offline show on top of what the server sent.
+  const shown = useMemo(
+    () =>
+      applyOutbox(transactions, outbox, {
+        type: filterType,
+        search: debouncedSearch || undefined,
+        accountId: filterAccountId || undefined,
+        category: filterCategory || undefined,
+        dateFrom,
+        dateTo,
+      }),
+    [transactions, outbox, filterType, debouncedSearch, filterAccountId, filterCategory, dateFrom, dateTo],
+  );
+  const sections = useMemo(() => groupByDate(shown), [shown]);
   const totalPages = data?.totalPages || 1;
 
   // Initial loading is true only when we do not yet have data for the active filter/page

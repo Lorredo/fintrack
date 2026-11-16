@@ -7,7 +7,8 @@ import { Button, EmptyState, Loader, Modal, Screen } from '@/components/ui';
 import { useToast } from '@/features/toast/hooks/useToast';
 import TransactionDetailsModal from '@/features/transactions/components/TransactionDetailsModal';
 import TransactionRow from '@/features/transactions/components/TransactionRow';
-import { useInfiniteTransactionList } from '@/features/transactions/hooks/useTransactions';
+import { useInfiniteTransactionList, useOutboxEntries } from '@/features/transactions/hooks/useTransactions';
+import { applyOutbox } from '@/features/transactions/offline/outbox.logic';
 import type { Transaction } from '@/features/transactions/types';
 import { groupByDate } from '@/features/transactions/utils/groupByDate';
 import { formatCurrency } from '@/shared/utils/categories';
@@ -39,6 +40,7 @@ export default function WalletDetailsScreen() {
     isFetchingNextPage,
     fetchNextPage,
   } = useInfiniteTransactionList({ accountId: id, limit: 20 });
+  const outbox = useOutboxEntries();
 
   const wallet = accounts?.find((account) => account.id === id);
   if (!wallet) {
@@ -51,7 +53,7 @@ export default function WalletDetailsScreen() {
 
   const canTransfer = (accounts?.length ?? 0) > 1;
   const lastUpdated = formatLastUpdated(wallet.lastAdjustedAt);
-  const sections = groupByDate(data?.pages.flatMap((page) => page.data) ?? []);
+  const sections = groupByDate(applyOutbox(data?.pages.flatMap((page) => page.data) ?? [], outbox, { accountId: id }));
 
   const handleEdit = () => {
     setShowMenu(false);

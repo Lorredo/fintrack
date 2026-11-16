@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useLogout } from "@/features/auth/hooks/useLogout";
+import { useOutbox } from "@/features/transactions/offline/outbox";
 import { useWipeData } from "@/features/auth/hooks/useWipeData";
 import { useAuthStore } from "@/features/auth/store/auth.store";
 import { Screen } from "@/components/ui";
@@ -50,9 +51,12 @@ export default function MeScreen() {
   };
 
   const handleLogout = () => {
+    const unsynced = useOutbox.getState().entries.length;
     Alert.alert(
       "Logout",
-      "Are you sure you want to log out?",
+      unsynced > 0
+        ? `${unsynced} ${unsynced === 1 ? "change hasn't" : "changes haven't"} synced yet and will be lost. Log out anyway?`
+        : "Are you sure you want to log out?",
       [
         { text: "Cancel", style: "cancel" },
         {
