@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Lorredo/fintrack/api/internal/database"
 	"github.com/Lorredo/fintrack/api/internal/models"
@@ -19,6 +20,9 @@ type TransactionService struct {
 
 // ErrInsufficientBalance means the wallet can't cover the expense or transfer.
 var ErrInsufficientBalance = errors.New("Insufficient balance in this wallet")
+
+// ErrTransactionIDTaken means another account already used this id.
+var ErrTransactionIDTaken = errors.New("This transaction id is already in use")
 
 func NewTransactionService(db database.Querier) *TransactionService {
 	if db == nil {
@@ -138,8 +142,45 @@ func (s *TransactionService) Get(ctx context.Context, id, userID string) (*model
 	return &t, nil
 }
 
-func (s *TransactionService) Create(ctx context.Context, userID string, req models.CreateTransactionRequest) (*models.Transaction, error) {
-	return CreateTransaction(ctx, s.db, userID, req)
+// Create saves a transaction. When the app sends its own id and that
+// transaction already exists, it is returned with existed true instead of
+// being added again, so an offline change can be retried safely.
+func (s *TransactionService) Create(ctx context.Context, userID string, req models.CreateTransactionRequest) (t *models.Transaction, existed bool, err error) {
+	if req.ID != nil {
+		if t, err := s.existingTransaction(ctx, userID, *req.ID); t != nil || err != nil {
+			return t, t != nil, err
+		}
+	}
+	t, err = CreateTransaction(ctx, s.db, userID, req)
+	var pgErr *pgconn.PgError
+	if req.ID != nil && errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		// Saved by a request running at the same time.
+		t, err = s.existingTransaction(ctx, userID, *req.ID)
+		return t, t != nil, err
+	}
+	return t, false, err
+}
+
+// existingTransaction returns the transaction with this id, nil when there is
+// none, or ErrTransactionIDTaken when it belongs to someone else.
+func (s *TransactionService) existingTransaction(ctx context.Context, userID, id string) (*models.Transaction, error) {
+	var t models.Transaction
+	var dateTime time.Time
+	err := s.db.QueryRow(ctx,
+		`SELECT id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at
+		 FROM transactions WHERE id = $1`, id,
+	).Scan(&t.ID, &t.UserID, &t.AccountID, &t.TransferAccountID, &t.Type, &t.Amount, &t.Category, &t.Description, &dateTime, &t.CreatedAt, &t.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if t.UserID != userID {
+		return nil, ErrTransactionIDTaken
+	}
+	t.Date = dateTime.Format("2006-01-02")
+	return &t, nil
 }
 
 // CreateTransaction saves a transaction with q, which can be a database
@@ -172,15 +213,15 @@ func CreateTransaction(ctx context.Context, q database.Querier, userID string, r
 		}
 	}
 
-	query := `INSERT INTO transactions (user_id, account_id, transfer_account_id, type, amount, category, description, date)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	query := `INSERT INTO transactions (id, user_id, account_id, transfer_account_id, type, amount, category, description, date)
+		 VALUES (COALESCE($9::uuid, uuid_generate_v4()), $1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id, user_id, account_id, transfer_account_id, type, amount, category, description, date, created_at, updated_at`
-	args := []interface{}{userID, req.AccountID, req.TransferAccountID, req.Type, req.Amount, req.Category, req.Description, req.Date}
+	args := []interface{}{userID, req.AccountID, req.TransferAccountID, req.Type, req.Amount, req.Category, req.Description, req.Date, req.ID}
 	if req.Fee > 0 {
 		// One statement, so the transfer and its fee save together or not at all.
 		query = `WITH fee AS (
 			INSERT INTO transactions (user_id, account_id, type, amount, category, description, date)
-			SELECT $1::uuid, $2::uuid, 'expense', $9::numeric, 'Transfer Fees', 'Transfer fee', $8::date
+			SELECT $1::uuid, $2::uuid, 'expense', $10::numeric, 'Transfer Fees', 'Transfer fee', $8::date
 		 ) ` + query
 		args = append(args, req.Fee)
 	}

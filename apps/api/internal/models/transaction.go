@@ -34,6 +34,9 @@ type Transaction struct {
 }
 
 type CreateTransactionRequest struct {
+	// Set by the app so a change saved offline can be sent again without
+	// being added twice.
+	ID        *string         `json:"id,omitempty" validate:"omitempty,uuid"`
 	AccountID         string          `json:"accountId" validate:"required"`
 	TransferAccountID *string         `json:"transferAccountId,omitempty"`
 	Type              TransactionType `json:"type" validate:"required,oneof=income expense transfer"`

@@ -88,7 +88,12 @@ func (h *TransactionHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
-	t, err := h.service.Create(c.Context(), userID, req)
+	t, existed, err := h.service.Create(c.Context(), userID, req)
+	if errors.Is(err, services.ErrTransactionIDTaken) {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+			"message": err.Error(),
+		})
+	}
 	if errors.Is(err, services.ErrInsufficientBalance) {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
 			"message": err.Error(),
@@ -98,6 +103,13 @@ func (h *TransactionHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to create transaction",
 			"error":   err.Error(),
+		})
+	}
+
+	if existed {
+		return c.Status(fiber.StatusOK).JSON(models.TransactionResponse{
+			Message: "Transaction already saved",
+			Data:    t,
 		})
 	}
 
