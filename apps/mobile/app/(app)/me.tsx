@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useLogout } from "@/features/auth/hooks/useLogout";
+import Constants from "expo-constants";
 import { useOutbox } from "@/features/transactions/offline/outbox";
 import { useWipeData } from "@/features/auth/hooks/useWipeData";
 import { useAuthStore } from "@/features/auth/store/auth.store";
@@ -186,7 +187,7 @@ export default function MeScreen() {
 
       {/* Version */}
       <Text style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginBottom: 20 }}>
-        FinTrack v1.1.0
+        FinTrack v{Constants.expoConfig?.version ?? ''}
       </Text>
 
       {/* Danger Zone */}
