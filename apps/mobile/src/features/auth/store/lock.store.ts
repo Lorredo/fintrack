@@ -4,6 +4,10 @@ import { storage, StorageKeys } from '@/lib/storage';
 interface LockState {
   isLocked: boolean;
   backgroundedAt: number | null;
+  /** Until when leaving the app is expected (a picker FinTrack opened), in ms. */
+  expectedAwayUntil: number | null;
+  expectAway: () => void;
+  endExpectedAway: () => void;
   lock: () => void;
   unlock: () => void;
   recordBackground: () => void;
@@ -21,6 +25,10 @@ const AUTO_LOCK_TIMEOUTS_MS: Record<string, number> = {
 // Default 30-second grace period before requiring PIN on app resume
 const DEFAULT_GRACE_PERIOD_MS = AUTO_LOCK_TIMEOUTS_MS['30s'];
 
+// A system picker opened from inside FinTrack doesn't count as leaving the
+// app, for at most this long, so walking away from it still locks.
+const EXPECTED_AWAY_MS = 2 * 60 * 1000;
+
 export function getAutoLockTimeoutMs(): number {
   const value = storage.get(StorageKeys.AUTO_LOCK_TIMEOUT);
   return (value ? AUTO_LOCK_TIMEOUTS_MS[value] : undefined) ?? DEFAULT_GRACE_PERIOD_MS;
@@ -29,6 +37,11 @@ export function getAutoLockTimeoutMs(): number {
 export const useLockStore = create<LockState>((set, get) => ({
   isLocked: false,
   backgroundedAt: null,
+  expectedAwayUntil: null,
+
+  expectAway: () => set({ expectedAwayUntil: Date.now() + EXPECTED_AWAY_MS }),
+
+  endExpectedAway: () => set({ expectedAwayUntil: null }),
 
   lock: () => set({ isLocked: true }),
 
@@ -44,8 +57,12 @@ export const useLockStore = create<LockState>((set, get) => ({
     const { backgroundedAt } = get();
     if (backgroundedAt === null) return false;
 
-    const elapsed = Date.now() - backgroundedAt;
-    set({ backgroundedAt: null });
+    const now = Date.now();
+    const elapsed = now - backgroundedAt;
+    const { expectedAwayUntil } = get();
+    set({ backgroundedAt: null, expectedAwayUntil: null });
+    // Back from a picker FinTrack opened, within the allowed time.
+    if (expectedAwayUntil !== null && now <= expectedAwayUntil) return false;
     if (elapsed >= getAutoLockTimeoutMs()) {
       set({ isLocked: true });
       return true;

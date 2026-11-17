@@ -94,6 +94,81 @@ describe('parseReceipt', () => {
     expect(receipt.type).toBe('expense');
   });
 
+  it('pairs labels and values on a two-column receipt read column by column', () => {
+    const receipt = parseReceipt([
+      'Payment Successful',
+      'PayWallet',
+      'Amount Paid',
+      '₱250.00',
+      'Paid to',
+      'Date',
+      'Ref No.',
+      'Total Amount',
+      "Aling Nena's Carinderia",
+      'Nov 16, 2026 12:42 PM',
+      '8023 4471 9065',
+      '₱250.00',
+    ]);
+    expect(receipt.amount).toBe(250);
+    expect(receipt.date).toBe('2026-11-16');
+    expect(receipt.merchant).toBe("Aling Nena's Carinderia");
+    expect(receipt.reference).toBe('8023 4471 9065');
+    expect(receiptDescription(receipt)).toBe("Aling Nena's Carinderia · Ref 8023 4471 9065");
+  });
+
+  it('splits ML Kit text blocks that hold a whole column', () => {
+    const receipt = parseReceipt([
+      'Payment Successful\nPayWallet',
+      'Amount Paid\n₱250.00',
+      'Paid to\nDate\nRef No.\nTotal Amount',
+      "Aling Nena's Carinderia\nNov 16, 2026 12:42 PM\n8023 4471 9065\n₱250.00",
+      'Sample receipt for demonstration',
+    ]);
+    expect(receipt.amount).toBe(250);
+    expect(receipt.date).toBe('2026-11-16');
+    expect(receipt.merchant).toBe("Aling Nena's Carinderia");
+    expect(receipt.reference).toBe('8023 4471 9065');
+  });
+
+  it('reads text ML Kit returned out of order (real output from the sample receipt)', () => {
+    const receipt = parseReceipt([
+      'Paid to',
+      'Date',
+      'Payment Successful',
+      'Ref No.',
+      'PayWallet',
+      'Total Amount',
+      'Amount Paid',
+      'P250.00',
+      "Aling Nena's Carinderia",
+      'Nov 16, 2026 12:42 PM',
+      '8023 4471 9065',
+      'Sample receipt for demonstration',
+      'P250.00',
+    ]);
+    expect(receipt.amount).toBe(250);
+    expect(receipt.date).toBe('2026-11-16');
+    expect(receipt.merchant).toBe("Aling Nena's Carinderia");
+    expect(receipt.reference).toBe('8023 4471 9065');
+  });
+
+  it('reads the same receipt row by row', () => {
+    const receipt = parseReceipt([
+      'Payment Successful',
+      'PayWallet',
+      'Amount Paid ₱250.00',
+      "Paid to Aling Nena's Carinderia",
+      'Date Nov 16, 2026 12:42 PM',
+      'Ref No. 8023 4471 9065',
+    ]);
+    expect(receipt.merchant).toBe("Aling Nena's Carinderia");
+    expect(receipt.reference).toBe('8023 4471 9065');
+  });
+
+  it('never takes a word on the next line for the reference', () => {
+    expect(parseReceipt(['Ref No.', 'Total Amount', '₱250.00']).reference).toBeUndefined();
+  });
+
   it('rejects impossible dates', () => {
     expect(parseReceipt(['Feb 30, 2026']).date).toBeUndefined();
     expect(parseReceipt(['13/45/2026']).date).toBeUndefined();

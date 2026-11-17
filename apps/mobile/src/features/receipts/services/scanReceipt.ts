@@ -1,4 +1,5 @@
 import { extractTextFromImage, isSupported } from 'expo-text-extractor';
+import { useLockStore } from '@/features/auth/store/lock.store';
 import * as ImagePicker from 'expo-image-picker';
 
 import type { Account } from '@/features/accounts/types';
@@ -25,9 +26,18 @@ export async function scanReceipt(uri: string): Promise<ParsedReceipt> {
 
 /** Opens the phone's photo picker for a screenshot. Null when cancelled. */
 export async function pickReceiptImage(): Promise<string | null> {
-  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-  if (result.canceled || !result.assets?.length) return null;
-  return result.assets[0].uri;
+  // The photo picker is another app; opening it isn't leaving FinTrack, so it
+  // mustn't lock the app and lose the scan.
+  useLockStore.getState().expectAway();
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (result.canceled || !result.assets?.length) return null;
+    return result.assets[0].uri;
+  } finally {
+    // Android may report the app as active just after the picker resolves,
+    // so the resume check needs to still see the flag.
+    setTimeout(() => useLockStore.getState().endExpectedAway(), 2000);
+  }
 }
 
 const SOURCE_NAMES: Record<ReceiptSource, RegExp> = {
