@@ -99,7 +99,11 @@ export interface SafeToSpend {
   paySchedule: PaySchedule | null;
   today: string;
   nextPayday: string;
+  /** Why payday isn't on the 15th or 30th, e.g. "Moved from Nov 30 · Bonifacio Day". */
+  nextPaydayNote?: string;
   daysLeft: number;
+  /** The next salary while it can still be recorded early (within a week). */
+  earlyPay?: PayItem | null;
   balance: number;
   billsReserved: number;
   savingsTarget: number;
@@ -140,7 +144,10 @@ export interface PayItem {
   name: string;
   kind: 'salary' | 'allowance';
   amount: number;
+  /** When it arrives: the working day before when the due date is a weekend or holiday. */
   date: string;
+  /** The date it's scheduled for, which the server records it under. Older servers leave it out. */
+  payDate?: string;
   accountId: string | null;
 }
 

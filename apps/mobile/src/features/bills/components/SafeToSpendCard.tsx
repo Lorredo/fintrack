@@ -4,10 +4,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { Modal } from '@/components/ui';
-import { formatCurrency } from '@/shared/utils/categories';
+import { useToast } from '@/features/toast/hooks/useToast';
+import { formatCurrency, getLocalISODate } from '@/shared/utils/categories';
 import { useSafeToSpend } from '../hooks/useBills';
-import type { ReservedBill, SafeToSpend } from '../types';
+import type { PayItem, ReservedBill, SafeToSpend } from '../types';
 import { formatShortDate } from '../utils/billLabels';
+import RecordPayModal from './RecordPayModal';
 
 function BreakdownLine({ label, value, minus, bold }: { label: string; value: number; minus?: boolean; bold?: boolean }) {
   return (
@@ -125,8 +127,11 @@ function Breakdown({ safe }: { safe: SafeToSpend }) {
 
 export function SafeToSpendCard() {
   const router = useRouter();
+  const toast = useToast();
   const { data: safe } = useSafeToSpend();
   const [showBreakdown, setShowBreakdown] = useState(false);
+  // The salary being recorded before payday.
+  const [earlyPay, setEarlyPay] = useState<PayItem | null>(null);
 
   // Older servers don't have this yet, and there's nothing to show until it loads.
   if (!safe) return null;
@@ -190,6 +195,12 @@ export function SafeToSpendCard() {
             </Text>
           </>
         )}
+        {!!safe.nextPaydayNote && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+            <MaterialCommunityIcons name="calendar-arrow-left" size={14} color={tone} />
+            <Text style={{ fontSize: 12, color: tone }}>{safe.nextPaydayNote}</Text>
+          </View>
+        )}
         {note && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
             <MaterialCommunityIcons name="information-outline" size={14} color={tone} />
@@ -198,6 +209,26 @@ export function SafeToSpendCard() {
         )}
         <Text style={{ fontSize: 12, color: tone, marginTop: 8, opacity: 0.8 }}>Tap for details</Text>
       </Pressable>
+
+      {safe.earlyPay && (
+        <Pressable
+          onPress={() => setEarlyPay(safe.earlyPay ?? null)}
+          accessibilityRole="button"
+          accessibilityHint="Records your salary now and starts the next pay period today"
+          className="active:opacity-70"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8, marginBottom: 16, paddingHorizontal: 4 }}
+        >
+          <MaterialCommunityIcons name="cash-fast" size={16} color="#2563EB" />
+          <Text style={{ flex: 1, fontSize: 13, color: '#2563EB' }}>Got paid early? Record your salary now</Text>
+        </Pressable>
+      )}
+
+      <RecordPayModal
+        item={earlyPay}
+        startDate={getLocalISODate()}
+        onClose={() => setEarlyPay(null)}
+        onRecorded={(item) => toast.success(`${item.name} recorded. Your new pay period starts today.`)}
+      />
 
       {safe.mode === 'balance' && (
         <Pressable

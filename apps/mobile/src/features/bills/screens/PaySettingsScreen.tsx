@@ -79,7 +79,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
         <Text className="text-sm text-text-secondary">
           {paySchedule === 'irregular'
             ? 'Safe to Spend counts down to the end of each month.'
-            : 'Safe to Spend counts down to your next payday. In February, the 30th is the last day of the month.'}
+            : 'Safe to Spend counts down to your next payday. When the 15th or 30th is a weekend or holiday, payday is the working day before. In February, the 30th is the last day of the month.'}
         </Text>
       </View>
 

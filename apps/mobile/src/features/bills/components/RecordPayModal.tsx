@@ -20,19 +20,21 @@ function toPickerDate(isoDate: string): Date {
 
 interface FormProps {
   item: PayItem;
+  /** The day it arrived, when it isn't the pay date (pay that came early). */
+  startDate?: string;
   onClose: () => void;
   onRecorded: (item: PayItem, transaction: Transaction) => void;
 }
 
-function RecordPayForm({ item, onClose, onRecorded }: FormProps) {
+function RecordPayForm({ item, startDate, onClose, onRecorded }: FormProps) {
   const toast = useToast();
   const { data: accounts } = useAccounts();
   const recordPay = useRecordPay();
 
   const [amount, setAmount] = useState(String(item.amount));
   const [accountId, setAccountId] = useState<string | null>(item.accountId ?? accounts?.[0]?.id ?? null);
-  // The day it arrived; the pay date unless it came late.
-  const [date, setDate] = useState(item.date);
+  // The day it arrived; the pay date unless it came early or late.
+  const [date, setDate] = useState(startDate ?? item.date);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   const parsedAmount = Number(amount);
@@ -42,7 +44,7 @@ function RecordPayForm({ item, onClose, onRecorded }: FormProps) {
   const handleRecord = () => {
     if (!isValidAmount || !accountId) return;
     recordPay.mutate(
-      { key: item.key, payDate: item.date, date, amount: Math.round(parsedAmount * 100) / 100, accountId },
+      { key: item.key, payDate: item.payDate ?? item.date, date, amount: Math.round(parsedAmount * 100) / 100, accountId },
       {
         onSuccess: (transaction) => {
           onClose();
@@ -56,7 +58,9 @@ function RecordPayForm({ item, onClose, onRecorded }: FormProps) {
   return (
     <View style={{ gap: 16 }}>
       <Text className="text-sm text-text-secondary">
-        Due {formatShortDate(item.date)}. This adds income to the wallet you choose.
+        {date < item.date
+          ? `Payday is ${formatShortDate(item.date)}. Recording it now starts your next pay period on ${formatShortDate(date)}.`
+          : `Due ${formatShortDate(item.date)}. This adds income to the wallet you choose.`}
       </Text>
 
       <Input label="Amount received" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} selectTextOnFocus />
@@ -107,14 +111,21 @@ function RecordPayForm({ item, onClose, onRecorded }: FormProps) {
 
 interface RecordPayModalProps {
   item: PayItem | null;
+  startDate?: string;
   onClose: () => void;
   onRecorded: (item: PayItem, transaction: Transaction) => void;
 }
 
-export default function RecordPayModal({ item, onClose, onRecorded }: RecordPayModalProps) {
+export default function RecordPayModal({ item, startDate, onClose, onRecorded }: RecordPayModalProps) {
   return (
     <Modal visible={item !== null} onClose={onClose} title={item ? `Record ${item.name}` : ''}>
-      {item && <RecordPayForm key={`${item.key}-${item.date}`} item={item} onClose={onClose} onRecorded={onRecorded} />}
+      {item && <RecordPayForm
+          key={`${item.key}-${item.date}-${startDate ?? ''}`}
+          item={item}
+          startDate={startDate}
+          onClose={onClose}
+          onRecorded={onRecorded}
+        />}
     </Modal>
   );
 }

@@ -71,7 +71,7 @@ export function PayToRecordCard() {
     }
     setBusy(itemId(item));
     recordPay.mutate(
-      { key: item.key, payDate: item.date, date: item.date },
+      { key: item.key, payDate: item.payDate ?? item.date, date: item.date },
       {
         onSuccess: (transaction) => handleRecorded(item, transaction),
         onError: (err: unknown) => toast.error(getErrorMessage(err) || "Couldn't record your pay"),
@@ -83,7 +83,7 @@ export function PayToRecordCard() {
   const handleAlreadyAdded = (item: PayItem) => {
     setBusy(itemId(item));
     skipPay.mutate(
-      { key: item.key, payDate: item.date },
+      { key: item.key, payDate: item.payDate ?? item.date },
       {
         onSuccess: () => toast.info(`${item.name} marked as already added`),
         onError: (err: unknown) => toast.error(getErrorMessage(err) || "Couldn't update this"),
