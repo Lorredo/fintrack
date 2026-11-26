@@ -72,7 +72,7 @@ func billError(c *fiber.Ctx, err error, fallback string) error {
 	case errors.Is(err, services.ErrNotADueDate), errors.Is(err, services.ErrBillNeedsWallet),
 		errors.Is(err, services.ErrNothingToUpdate), errors.Is(err, services.ErrBadRegularIncome),
 		errors.Is(err, services.ErrDuplicateIncome), errors.Is(err, services.ErrNotAPayItem),
-		errors.Is(err, services.ErrPayNeedsWallet):
+		errors.Is(err, services.ErrPayNeedsWallet), errors.Is(err, services.ErrPayTooEarly):
 		return finish(respond(c, fiber.StatusBadRequest, err.Error()))
 	case errors.Is(err, services.ErrInsufficientBalance):
 		return finish(respond(c, fiber.StatusUnprocessableEntity, err.Error()))

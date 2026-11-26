@@ -601,14 +601,17 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 		return nil, err
 	}
 
-	schedule := PayScheduleIrregular
-	if settings.PaySchedule != nil {
-		schedule = *settings.PaySchedule
+	period, err := s.effectivePeriod(ctx, userID, settings, today)
+	if err != nil {
+		return nil, err
 	}
-	period := CurrentPayPeriod(schedule, today)
 	result.PeriodStart = FormatDay(period.Start)
 	result.NextPayday = FormatDay(period.NextPayday)
+	result.NextPaydayNote = PaydayNote(period.Closing.Scheduled, period.Closing.Date)
 	result.DaysLeft = DaysBetween(today, period.NextPayday)
+	if result.EarlyPay, err = s.earlyPay(ctx, userID, settings, period, today); err != nil {
+		return nil, err
+	}
 
 	paid, err := s.paidDates(ctx, userID)
 	if err != nil {
