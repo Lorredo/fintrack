@@ -93,7 +93,10 @@ type RegularIncome struct {
 type ExpectedIncome struct {
 	Name   string  `json:"name"`
 	Amount float64 `json:"amount"`
-	Date   string  `json:"date"`
+	// When it arrives: moved back to a working day if needed.
+	Date string `json:"date"`
+	// The date it's scheduled for, which keys its pay record.
+	PayDate string `json:"-"`
 }
 
 type PaySettings struct {
@@ -131,11 +134,15 @@ const (
 // PayItem is one salary or allowance due on a date, for Record pay.
 type PayItem struct {
 	// "salary", or "income:" plus the allowance's name in lower case.
-	Key       string  `json:"key"`
-	Name      string  `json:"name"`
-	Kind      string  `json:"kind"`
-	Amount    float64 `json:"amount"`
-	Date      string  `json:"date"`
+	Key    string  `json:"key"`
+	Name   string  `json:"name"`
+	Kind   string  `json:"kind"`
+	Amount float64 `json:"amount"`
+	// When it arrives: moved back to a working day if needed.
+	Date string `json:"date"`
+	// The date it's scheduled for (the 15th or the 30th for the salary). Record
+	// and skip with this; Date is accepted too, for older app versions.
+	PayDate   string  `json:"payDate"`
 	AccountID *string `json:"accountId"`
 }
 
@@ -174,7 +181,13 @@ type SafeToSpend struct {
 	PaySchedule *string `json:"paySchedule"`
 	Today       string  `json:"today"`
 	NextPayday  string  `json:"nextPayday"`
-	DaysLeft    int     `json:"daysLeft"`
+	// Why the next payday isn't on the 15th or the 30th, such as "Moved from
+	// Nov 30 · Bonifacio Day"; empty when it is.
+	NextPaydayNote string `json:"nextPaydayNote"`
+	DaysLeft       int    `json:"daysLeft"`
+	// The next salary, while it can still be recorded early (within a week of
+	// payday); null otherwise.
+	EarlyPay *PayItem `json:"earlyPay"`
 	// Total of the wallets that count toward Safe to Spend.
 	Balance         float64        `json:"balance"`
 	BillsReserved   float64        `json:"billsReserved"`

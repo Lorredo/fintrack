@@ -73,17 +73,39 @@ func Occurrences(start time.Time, frequency string, until time.Time) []time.Time
 	}
 }
 
+// Payday is a scheduled payday (the 15th or the 30th) and the day the pay
+// actually comes: the working day before when it falls on a weekend or a
+// holiday.
+type Payday struct {
+	Scheduled time.Time
+	Date      time.Time
+}
+
+func paydayOf(scheduled time.Time) Payday {
+	return Payday{Scheduled: scheduled, Date: PreviousWorkingDay(scheduled)}
+}
+
 // PayPeriod is the stretch Safe to Spend covers: from the last payday up to,
 // but not including, the next one.
 type PayPeriod struct {
 	Start      time.Time
 	NextPayday time.Time
+	// The payday that opened the period and the one that ends it. Start is
+	// Opening.Date unless the salary came early, and NextPayday is
+	// Closing.Date. For irregular pay both are the month's boundaries.
+	Opening Payday
+	Closing Payday
 }
 
-// semiMonthlyPaydays are the 15th and the 30th, which is the month's last day
-// in February.
-func semiMonthlyPaydays(year int, month time.Month) [2]time.Time {
-	return [2]time.Time{dayOf(year, month, 15), clampedDay(year, month, 30)}
+// semiMonthlyPaydays are the 15th and the 30th (the month's last day in
+// February), moved back to a working day when needed. A move never leaves the
+// month or reorders the two.
+func semiMonthlyPaydays(year int, month time.Month) [2]Payday {
+	return [2]Payday{paydayOf(dayOf(year, month, 15)), paydayOf(clampedDay(year, month, 30))}
+}
+
+func periodBetween(opening, closing Payday) PayPeriod {
+	return PayPeriod{Start: opening.Date, NextPayday: closing.Date, Opening: opening, Closing: closing}
 }
 
 // CurrentPayPeriod finds the period that today falls in. On a payday, a new
@@ -92,23 +114,24 @@ func CurrentPayPeriod(schedule string, today time.Time) PayPeriod {
 	year, month := today.Year(), today.Month()
 
 	if schedule != PayScheduleSemiMonthly {
-		return PayPeriod{
-			Start:      dayOf(year, month, 1),
-			NextPayday: dayOf(year, month+1, 1),
-		}
+		first, next := dayOf(year, month, 1), dayOf(year, month+1, 1)
+		return periodBetween(Payday{first, first}, Payday{next, next})
 	}
 
 	this := semiMonthlyPaydays(year, month)
 	switch {
-	case today.Before(this[0]):
-		previous := semiMonthlyPaydays(year, month-1)
-		return PayPeriod{Start: previous[1], NextPayday: this[0]}
-	case today.Before(this[1]):
-		return PayPeriod{Start: this[0], NextPayday: this[1]}
+	case today.Before(this[0].Date):
+		return periodBetween(semiMonthlyPaydays(year, month-1)[1], this[0])
+	case today.Before(this[1].Date):
+		return periodBetween(this[0], this[1])
 	default:
-		next := semiMonthlyPaydays(year, month+1)
-		return PayPeriod{Start: this[1], NextPayday: next[0]}
+		return periodBetween(this[1], semiMonthlyPaydays(year, month+1)[0])
 	}
+}
+
+// PeriodAfter is the period that follows one.
+func PeriodAfter(schedule string, period PayPeriod) PayPeriod {
+	return CurrentPayPeriod(schedule, period.NextPayday)
 }
 
 // DaysBetween counts whole days from a to b.
@@ -116,13 +139,19 @@ func DaysBetween(a, b time.Time) int {
 	return int(b.Sub(a).Hours() / 24)
 }
 
-// RegularIncomeDate is the day a regular income arrives in a given month:
-// day N (clamped to the month's end), or the Nth weekday, where Nth 5 is the
-// last one in the month.
-func RegularIncomeDate(income models.RegularIncome, year int, month time.Month) time.Time {
+// RegularIncomeDate is when a regular income is due in a given month. Day N
+// (clamped to the month's end) moves back to a working day like the salary,
+// since payroll pays it the same way. The Nth weekday, where Nth 5 is the last
+// one in the month, stays as it is.
+func RegularIncomeDate(income models.RegularIncome, year int, month time.Month) Payday {
 	if income.Kind != models.RegularIncomeByWeekday {
-		return clampedDay(year, month, income.Day)
+		return paydayOf(clampedDay(year, month, income.Day))
 	}
+	date := nthWeekday(income, year, month)
+	return Payday{Scheduled: date, Date: date}
+}
+
+func nthWeekday(income models.RegularIncome, year int, month time.Month) time.Time {
 	weekday := time.Weekday(income.Weekday)
 	if income.Nth >= 5 {
 		last := clampedDay(year, month, 31)
@@ -134,19 +163,17 @@ func RegularIncomeDate(income models.RegularIncome, year int, month time.Month) 
 }
 
 // RegularIncomeInPeriod lists regular income arriving within the period,
-// which can span two months (for example Oct 30 to Nov 14).
+// which can span two months (for example Oct 30 to Nov 13). A date moved back
+// from the next month can land in it too.
 func RegularIncomeInPeriod(incomes []models.RegularIncome, period PayPeriod) []models.ExpectedIncome {
 	expected := make([]models.ExpectedIncome, 0)
-	lastDay := period.NextPayday.AddDate(0, 0, -1)
 	for _, income := range incomes {
-		months := []time.Time{dayOf(period.Start.Year(), period.Start.Month(), 1)}
-		if lastDay.Month() != period.Start.Month() || lastDay.Year() != period.Start.Year() {
-			months = append(months, dayOf(lastDay.Year(), lastDay.Month(), 1))
-		}
-		for _, month := range months {
-			date := RegularIncomeDate(income, month.Year(), month.Month())
-			if !date.Before(period.Start) && date.Before(period.NextPayday) {
-				expected = append(expected, models.ExpectedIncome{Name: income.Name, Amount: income.Amount, Date: FormatDay(date)})
+		for month := dayOf(period.Start.Year(), period.Start.Month(), 1); !month.After(period.NextPayday.AddDate(0, 0, 7)); month = month.AddDate(0, 1, 0) {
+			due := RegularIncomeDate(income, month.Year(), month.Month())
+			if !due.Date.Before(period.Start) && due.Date.Before(period.NextPayday) {
+				expected = append(expected, models.ExpectedIncome{
+					Name: income.Name, Amount: income.Amount, Date: FormatDay(due.Date), PayDate: FormatDay(due.Scheduled),
+				})
 			}
 		}
 	}
@@ -172,13 +199,14 @@ func PaluwaganRoundDate(start time.Time, frequency string, round int) time.Time 
 	}
 }
 
-// nextSemiMonthlyPayday is the first 15th or 30th after date.
+// nextSemiMonthlyPayday is the first 15th or 30th after date, as scheduled:
+// paluwagan rounds don't move for weekends or holidays.
 func nextSemiMonthlyPayday(date time.Time) time.Time {
 	this := semiMonthlyPaydays(date.Year(), date.Month())
 	for _, payday := range this {
-		if payday.After(date) {
-			return payday
+		if payday.Scheduled.After(date) {
+			return payday.Scheduled
 		}
 	}
-	return semiMonthlyPaydays(date.Year(), date.Month()+1)[0]
+	return semiMonthlyPaydays(date.Year(), date.Month()+1)[0].Scheduled
 }

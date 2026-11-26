@@ -63,21 +63,29 @@ func TestOccurrences(t *testing.T) {
 }
 
 func TestCurrentPayPeriod(t *testing.T) {
+	// Paydays on a weekend or holiday move to the working day before:
+	// Nov 15, 2026 is a Sunday (Nov 13), Nov 30 is Bonifacio Day (Nov 27),
+	// Dec 30 is Rizal Day (Dec 29) and Feb 28, 2027 is a Sunday (Feb 26).
 	cases := []struct {
 		name, schedule, today string
 		start, next           string
 	}{
-		{"before the 15th", PayScheduleSemiMonthly, "2026-11-09", "2026-10-30", "2026-11-15"},
-		{"the 14th", PayScheduleSemiMonthly, "2026-11-14", "2026-10-30", "2026-11-15"},
-		{"on the 15th", PayScheduleSemiMonthly, "2026-11-15", "2026-11-15", "2026-11-30"},
-		{"the 16th", PayScheduleSemiMonthly, "2026-11-16", "2026-11-15", "2026-11-30"},
-		{"on the 30th", PayScheduleSemiMonthly, "2026-11-30", "2026-11-30", "2026-12-15"},
-		{"the 31st", PayScheduleSemiMonthly, "2026-12-31", "2026-12-30", "2027-01-15"},
-		{"early January", PayScheduleSemiMonthly, "2027-01-03", "2026-12-30", "2027-01-15"},
-		{"late February", PayScheduleSemiMonthly, "2027-02-20", "2027-02-15", "2027-02-28"},
-		{"on Feb 28", PayScheduleSemiMonthly, "2027-02-28", "2027-02-28", "2027-03-15"},
-		{"early March", PayScheduleSemiMonthly, "2027-03-01", "2027-02-28", "2027-03-15"},
+		{"before the 15th", PayScheduleSemiMonthly, "2026-11-09", "2026-10-30", "2026-11-13"},
+		{"the day before payday", PayScheduleSemiMonthly, "2026-11-12", "2026-10-30", "2026-11-13"},
+		{"on the moved payday", PayScheduleSemiMonthly, "2026-11-13", "2026-11-13", "2026-11-27"},
+		{"on the Sunday 15th", PayScheduleSemiMonthly, "2026-11-15", "2026-11-13", "2026-11-27"},
+		{"before Bonifacio Day", PayScheduleSemiMonthly, "2026-11-26", "2026-11-13", "2026-11-27"},
+		{"payday before Bonifacio Day", PayScheduleSemiMonthly, "2026-11-27", "2026-11-27", "2026-12-15"},
+		{"on Bonifacio Day", PayScheduleSemiMonthly, "2026-11-30", "2026-11-27", "2026-12-15"},
+		{"on a working 15th", PayScheduleSemiMonthly, "2026-12-15", "2026-12-15", "2026-12-29"},
+		{"payday before Rizal Day", PayScheduleSemiMonthly, "2026-12-29", "2026-12-29", "2027-01-15"},
+		{"the 31st", PayScheduleSemiMonthly, "2026-12-31", "2026-12-29", "2027-01-15"},
+		{"early January", PayScheduleSemiMonthly, "2027-01-03", "2026-12-29", "2027-01-15"},
+		{"late February", PayScheduleSemiMonthly, "2027-02-20", "2027-02-15", "2027-02-26"},
+		{"Friday before a Sunday Feb 28", PayScheduleSemiMonthly, "2027-02-26", "2027-02-26", "2027-03-15"},
+		{"early March", PayScheduleSemiMonthly, "2027-03-01", "2027-02-26", "2027-03-15"},
 		{"leap February", PayScheduleSemiMonthly, "2028-02-28", "2028-02-15", "2028-02-29"},
+		{"Saturday 15th and Sunday 30th", PayScheduleSemiMonthly, "2026-08-20", "2026-08-14", "2026-08-28"},
 		{"irregular", PayScheduleIrregular, "2026-11-09", "2026-11-01", "2026-12-01"},
 		{"irregular in December", PayScheduleIrregular, "2026-12-31", "2026-12-01", "2027-01-01"},
 	}
@@ -91,6 +99,19 @@ func TestCurrentPayPeriod(t *testing.T) {
 				t.Errorf("next payday = %s, want %s", got, tc.next)
 			}
 		})
+	}
+}
+
+func TestPayPeriodKeepsScheduledDates(t *testing.T) {
+	period := CurrentPayPeriod(PayScheduleSemiMonthly, mustDay(t, "2026-11-26"))
+	if got := FormatDay(period.Opening.Scheduled); got != "2026-11-15" {
+		t.Errorf("opening scheduled = %s, want 2026-11-15", got)
+	}
+	if got := FormatDay(period.Closing.Scheduled); got != "2026-11-30" {
+		t.Errorf("closing scheduled = %s, want 2026-11-30", got)
+	}
+	if got := FormatDay(PeriodAfter(PayScheduleSemiMonthly, period).Start); got != "2026-11-27" {
+		t.Errorf("next period starts %s, want 2026-11-27", got)
 	}
 }
 
@@ -119,12 +140,14 @@ func TestRegularIncomeDate(t *testing.T) {
 		{"second Friday", models.RegularIncome{Kind: models.RegularIncomeByWeekday, Nth: 2, Weekday: int(time.Friday)}, 2026, time.November, "2026-11-13"},
 		{"last Monday", lastMonday, 2026, time.November, "2026-11-30"},
 		{"last Monday not on the 31st", lastMonday, 2026, time.December, "2026-12-28"},
-		{"day 15", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 15}, 2026, time.November, "2026-11-15"},
-		{"day 31 in February", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 31}, 2027, time.February, "2027-02-28"},
+		{"day 15 on a Sunday", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 15}, 2026, time.November, "2026-11-13"},
+		{"day 15 on a Tuesday", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 15}, 2026, time.December, "2026-12-15"},
+		{"day 31 in February", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 31}, 2027, time.February, "2027-02-26"},
+		{"day 31 in leap February", models.RegularIncome{Kind: models.RegularIncomeByDay, Day: 31}, 2028, time.February, "2028-02-29"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := FormatDay(RegularIncomeDate(tc.income, tc.year, tc.month)); got != tc.want {
+			if got := FormatDay(RegularIncomeDate(tc.income, tc.year, tc.month).Date); got != tc.want {
 				t.Errorf("got %s, want %s", got, tc.want)
 			}
 		})
@@ -136,15 +159,15 @@ func TestRegularIncomeInPeriod(t *testing.T) {
 		{Name: "Augmentation", Amount: 2000, Kind: models.RegularIncomeByWeekday, Nth: 1, Weekday: int(time.Friday)},
 		{Name: "Rice allowance", Amount: 1500, Kind: models.RegularIncomeByDay, Day: 15},
 	}
-	// Oct 30 to Nov 14 spans two months: augmentation on Nov 6, no rice allowance.
+	// Oct 30 to Nov 12 spans two months: augmentation on Nov 6, no rice allowance.
 	got := RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleSemiMonthly, mustDay(t, "2026-11-09")))
 	if len(got) != 1 || got[0].Name != "Augmentation" || got[0].Date != "2026-11-06" {
-		t.Errorf("Oct 30 to Nov 14: got %+v", got)
+		t.Errorf("Oct 30 to Nov 12: got %+v", got)
 	}
-	// Nov 15 to Nov 29: rice allowance on the 15th.
+	// Nov 13 to Nov 26: the rice allowance for Sunday the 15th comes on the 13th.
 	got = RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleSemiMonthly, mustDay(t, "2026-11-20")))
-	if len(got) != 1 || got[0].Name != "Rice allowance" || got[0].Date != "2026-11-15" {
-		t.Errorf("Nov 15 to Nov 29: got %+v", got)
+	if len(got) != 1 || got[0].Name != "Rice allowance" || got[0].Date != "2026-11-13" || got[0].PayDate != "2026-11-15" {
+		t.Errorf("Nov 13 to Nov 26: got %+v", got)
 	}
 	// Irregular pay covers the whole month, so both arrive.
 	if got = RegularIncomeInPeriod(incomes, CurrentPayPeriod(PayScheduleIrregular, mustDay(t, "2026-11-20"))); len(got) != 2 {
