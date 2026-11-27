@@ -15,7 +15,7 @@ import { formatShortDate } from '../utils/billLabels';
 
 export const PAY_SCHEDULE_LABELS = {
   semi_monthly: '15th and 30th, or the working day before',
-  irregular: 'Irregular (end of month)',
+  irregular: 'Irregular / freelance, month to month',
 } as const;
 
 export default function BillsScreen() {
