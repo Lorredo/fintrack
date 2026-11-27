@@ -8,6 +8,7 @@ import type {
   PendingPay,
   RecordPayInput,
   SafeToSpend,
+  SafeToSpendHistory,
   SkipBillInput,
   UpdateBillInput,
 } from '../types';
@@ -69,6 +70,13 @@ export const BillApi = {
 
   safeToSpend: async (today: string): Promise<SafeToSpend> => {
     const { data } = await api.get<{ data: SafeToSpend }>('/api/v1/dashboard/safe-to-spend', { params: { today } });
+    return data.data;
+  },
+
+  safeToSpendHistory: async (today: string, before?: string): Promise<SafeToSpendHistory> => {
+    const { data } = await api.get<{ data: SafeToSpendHistory }>('/api/v1/dashboard/safe-to-spend/history', {
+      params: before ? { today, before } : { today },
+    });
     return data.data;
   },
 };

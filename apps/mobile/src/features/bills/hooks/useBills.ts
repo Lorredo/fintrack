@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 import { getLocalISODate } from '@/shared/utils/categories';
 import { BillApi } from '../api/bills.api';
@@ -12,6 +12,8 @@ export const BILL_KEYS = {
   settings: ['settings', 'pay'] as const,
   // Under 'dashboard' too, so adding or deleting a transaction refreshes it.
   pendingPay: (today: string) => ['dashboard', 'pay-pending', today] as const,
+  // Under 'dashboard' too, so new transactions show up in it.
+  history: (today: string) => ['dashboard', 'safe-to-spend-history', today] as const,
 };
 
 function refreshBills(queryClient: QueryClient) {
@@ -38,6 +40,17 @@ export function useSafeToSpend() {
   return useQuery({
     queryKey: BILL_KEYS.safeToSpend(today),
     queryFn: () => BillApi.safeToSpend(today),
+  });
+}
+
+/** Pay period history, newest first, loading 12 older periods at a time. */
+export function useSafeToSpendHistory() {
+  const today = getLocalISODate();
+  return useInfiniteQuery({
+    queryKey: BILL_KEYS.history(today),
+    queryFn: ({ pageParam }) => BillApi.safeToSpendHistory(today, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextBefore ?? undefined,
   });
 }
 
