@@ -191,6 +191,27 @@ func (h *BillHandler) SafeToSpend(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": result})
 }
 
+// SafeToSpendHistory lists past pay periods; ?before= loads older ones.
+func (h *BillHandler) SafeToSpendHistory(c *fiber.Ctx) error {
+	today, err := parseToday(c)
+	if err != nil {
+		return finish(err)
+	}
+	var before *time.Time
+	if value := c.Query("before"); value != "" {
+		day, err := services.ParseDay(value)
+		if err != nil {
+			return finish(respond(c, fiber.StatusBadRequest, "before must be a date like 2026-11-13"))
+		}
+		before = &day
+	}
+	result, err := h.service.SafeToSpendHistory(c.Context(), userIDOf(c), today, before)
+	if err != nil {
+		return billError(c, err, "Failed to load pay period history")
+	}
+	return c.JSON(fiber.Map{"data": result})
+}
+
 func (h *BillHandler) PendingPay(c *fiber.Ctx) error {
 	today, err := parseToday(c)
 	if err != nil {

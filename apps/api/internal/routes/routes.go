@@ -56,6 +56,7 @@ func Setup(app *fiber.App, jwtSecret string, authHandler *handlers.AuthHandler, 
 	dashboard := api.Group("/dashboard", authRequired)
 	dashboard.Get("/summary", dashboardHandler.Summary)
 	dashboard.Get("/safe-to-spend", billHandler.SafeToSpend)
+	dashboard.Get("/safe-to-spend/history", billHandler.SafeToSpendHistory)
 
 	// Bill routes (protected)
 	bills := api.Group("/bills", authRequired)

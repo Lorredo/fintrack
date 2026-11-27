@@ -224,3 +224,47 @@ type SafeToSpend struct {
 	PlannedLeft      float64          `json:"plannedLeft"`
 	PeriodStart      string           `json:"periodStart"`
 }
+
+// PayPeriodSummary is how one pay period turned out, for Pay period history.
+type PayPeriodSummary struct {
+	Start string `json:"start"`
+	// The period's last day, inclusive.
+	End      string `json:"end"`
+	Current  bool   `json:"current"`
+	DaysLeft int    `json:"daysLeft"`
+	// False without a salary or regular income: there's nothing to plan
+	// against, so Result is what was kept (received − spent − bills).
+	HasPlan bool `json:"hasPlan"`
+	// The plan wasn't saved for this period, so current settings were used.
+	PlanEstimated bool    `json:"planEstimated"`
+	Received      float64 `json:"received"`
+	ExtraIncome   float64 `json:"extraIncome"`
+	// The pay planned with: at least the expected pay, plus extra.
+	Pay          float64 `json:"pay"`
+	PayEstimated bool    `json:"payEstimated"`
+	// Bills, paluwagan contributions and utang paid back.
+	Bills          float64 `json:"bills"`
+	SavingsTarget  float64 `json:"savingsTarget"`
+	MovedToSavings float64 `json:"movedToSavings"`
+	SpendingMoney  float64 `json:"spendingMoney"`
+	Spent          float64 `json:"spent"`
+	// Spending money − spent: positive is under plan, negative is over.
+	Result float64 `json:"result"`
+}
+
+// HistoryTotals adds up the finished periods on a page of history.
+type HistoryTotals struct {
+	Periods        int     `json:"periods"`
+	Under          int     `json:"under"`
+	Over           int     `json:"over"`
+	Result         float64 `json:"result"`
+	MovedToSavings float64 `json:"movedToSavings"`
+}
+
+type SafeToSpendHistory struct {
+	// Newest first. The first page starts with the current period.
+	Periods []PayPeriodSummary `json:"periods"`
+	// Pass as ?before= for older periods; null when there are none.
+	NextBefore *string       `json:"nextBefore"`
+	Totals     HistoryTotals `json:"totals"`
+}
