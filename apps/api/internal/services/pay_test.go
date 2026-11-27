@@ -56,3 +56,31 @@ func TestFindPayItemAcceptsBothDates(t *testing.T) {
 		t.Errorf("no salary on the 20th, got %v", err)
 	}
 }
+
+func TestSplitPay(t *testing.T) {
+	cases := []struct {
+		name                   string
+		payIncome, otherIncome float64
+		pay, extra, saved      float64
+		estimated              bool
+	}{
+		{"overtime before the salary", 0, 2000, 17000, 2000, 1000, true},
+		{"salary and overtime", 15000, 2000, 17000, 2000, 1000, false},
+		{"overtime recorded as salary", 17000, 0, 17000, 2000, 1000, false},
+		{"only part of the salary yet", 5000, 0, 15000, 0, 0, true},
+		{"nothing recorded", 0, 0, 15000, 0, 0, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := splitPay(15000, tc.payIncome, tc.otherIncome, 50)
+			if got.pay != tc.pay || got.extra != tc.extra || got.extraSaved != tc.saved || got.estimated != tc.estimated {
+				t.Errorf("got %+v, want pay %v extra %v saved %v estimated %v", got, tc.pay, tc.extra, tc.saved, tc.estimated)
+			}
+		})
+	}
+
+	// Irregular pay passes all income as pay, so freelance pay isn't counted twice.
+	if got := splitPay(30000, 30000, 0, 50); got.pay != 30000 || got.extra != 0 {
+		t.Errorf("irregular: got %+v", got)
+	}
+}

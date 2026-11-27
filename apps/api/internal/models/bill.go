@@ -207,6 +207,8 @@ type SafeToSpend struct {
 	// Salary mode only.
 	Salary         float64 `json:"salary"`
 	IncomeRecorded float64 `json:"incomeRecorded"`
+	// The salary and allowances recorded so far, without extra income.
+	SalaryRecorded float64 `json:"salaryRecorded"`
 	// True until the salary has been recorded as income this period.
 	PayEstimated bool `json:"payEstimated"`
 	// Salary plus the regular income due this period.

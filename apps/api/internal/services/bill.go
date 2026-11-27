@@ -557,6 +557,43 @@ func (s *BillService) sumInPeriod(ctx context.Context, userID, txType string, st
 	return total, err
 }
 
+// sumIncomeByKind adds up income from counted wallets dated within
+// [start, end): pay is the salary and allowance categories, other is the rest
+// (overtime, bonuses, side income), which counts as extra right away.
+func (s *BillService) sumIncomeByKind(ctx context.Context, userID string, start, end time.Time) (pay, other float64, err error) {
+	err = s.db.QueryRow(ctx, `
+		SELECT
+			COALESCE(SUM(t.amount) FILTER (WHERE LOWER(t.category) IN ($4, $5)), 0),
+			COALESCE(SUM(t.amount) FILTER (WHERE LOWER(t.category) NOT IN ($4, $5)), 0)
+		FROM transactions t
+		JOIN accounts a ON a.id = t.account_id
+		WHERE t.user_id = $1 AND t.type = 'income' AND a.in_safe_to_spend
+			AND t.date >= $2 AND t.date < $3
+			AND NOT EXISTS (SELECT 1 FROM bill_payments bp WHERE bp.transaction_id = t.id)`,
+		userID, FormatDay(start), FormatDay(end),
+		strings.ToLower(salaryCategory), strings.ToLower(allowanceCategory)).Scan(&pay, &other)
+	return pay, other, err
+}
+
+type paySplit struct {
+	pay, extra, extraSaved float64
+	estimated              bool
+}
+
+// splitPay works out the period's pay. Salary and allowances count as at
+// least what's expected, so pay not yet recorded is still planned for; only
+// the part above it is extra. Other income is extra on top, even before the
+// salary comes. extraPercent of the extra goes to savings.
+func splitPay(expected, payIncome, otherIncome float64, extraPercent int) paySplit {
+	extra := math.Max(payIncome-expected, 0) + otherIncome
+	return paySplit{
+		pay:        math.Max(payIncome, expected) + otherIncome,
+		extra:      extra,
+		extraSaved: round2(extra * float64(extraPercent) / 100),
+		estimated:  payIncome < expected,
+	}
+}
+
 // SafeToSpend works out what can be spent each day until the next payday.
 //
 // With a salary set, it plans from this period's pay: pay, minus every bill
@@ -686,16 +723,22 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 	if salaryMode {
 		result.Mode = "salary"
 		result.Salary = settings.SalaryPerPayday
-		if result.IncomeRecorded, err = s.sumInPeriod(ctx, userID, "income", period.Start, period.NextPayday); err != nil {
+		var payIncome, otherIncome float64
+		if payIncome, otherIncome, err = s.sumIncomeByKind(ctx, userID, period.Start, period.NextPayday); err != nil {
 			return nil, err
 		}
 		if result.SpentSincePayday, err = s.sumInPeriod(ctx, userID, "expense", period.Start, period.NextPayday); err != nil {
 			return nil, err
 		}
-		result.PayEstimated = result.IncomeRecorded < result.ExpectedPay
-		result.Pay = math.Max(result.IncomeRecorded, result.ExpectedPay)
-		result.ExtraIncome = math.Max(result.IncomeRecorded-result.ExpectedPay, 0)
-		result.ExtraSaved = round2(result.ExtraIncome * float64(settings.ExtraToSavingsPercent) / 100)
+		result.IncomeRecorded = payIncome + otherIncome
+		// Irregular pay has no salary to tell extra from, so all income counts
+		// toward the expected amount, as freelance pay would otherwise count twice.
+		if payScheduleOf(settings) != PayScheduleSemiMonthly {
+			payIncome, otherIncome = result.IncomeRecorded, 0
+		}
+		result.SalaryRecorded = payIncome
+		split := splitPay(result.ExpectedPay, payIncome, otherIncome, settings.ExtraToSavingsPercent)
+		result.Pay, result.ExtraIncome, result.ExtraSaved, result.PayEstimated = split.pay, split.extra, split.extraSaved, split.estimated
 	}
 
 	// Money already moved into a wallet that isn't counted (such as savings)
