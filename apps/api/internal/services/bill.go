@@ -721,6 +721,11 @@ func (s *BillService) SafeToSpend(ctx context.Context, userID string, today time
 
 	salaryMode := settings.SalaryPerPayday > 0 || len(settings.RegularIncomes) > 0
 	if salaryMode {
+		// Pay period history shows each period with the plan it had. Failing
+		// to save it only makes that period's plan "estimated" later, so it
+		// doesn't stop Safe to Spend.
+		_ = s.savePeriodPlan(ctx, userID, period, result.ExpectedPay, settings)
+
 		result.Mode = "salary"
 		result.Salary = settings.SalaryPerPayday
 		var payIncome, otherIncome float64

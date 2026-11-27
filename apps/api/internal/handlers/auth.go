@@ -475,6 +475,11 @@ func (h *AuthHandler) WipeData(c *fiber.Ctx) error {
 			"message": "Failed to delete recorded pay",
 		})
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM pay_period_plans WHERE user_id = $1`, userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"message": "Failed to delete pay period history",
+		})
+	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM bills WHERE user_id = $1`, userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
