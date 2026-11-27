@@ -83,7 +83,7 @@ function SalaryBreakdown({ safe }: { safe: SafeToSpend }) {
       ))}
       {safe.payEstimated && (
         <Text style={{ fontSize: 12, color: '#B45309', paddingBottom: 4 }}>
-          Expected: {formatCurrency(safe.expectedPay ?? safe.salary)}, recorded so far {formatCurrency(safe.incomeRecorded)}.
+          Expected: {formatCurrency(safe.expectedPay ?? safe.salary)}, recorded so far {formatCurrency(safe.salaryRecorded ?? safe.incomeRecorded)}.
           Record each one as income when it arrives.
         </Text>
       )}

@@ -178,10 +178,12 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
           />
           <Text className="text-sm text-text-secondary">
             {extraToSavings === 50
-              ? 'Income you record above your salary is split: half to savings, half to spending.'
+              ? 'Extra income is split: half to savings, half to spending.'
               : extraToSavings === 100
-                ? 'Income you record above your salary all goes to savings.'
-                : 'Income you record above your salary all goes to spending.'}
+                ? 'Extra income all goes to savings.'
+                : 'Extra income all goes to spending.'}{' '}
+            Income in Overtime, Bonus & Commission or any category other than Salary and Allowance counts as extra as
+            soon as you record it, and so does salary above what you set.
           </Text>
         </View>
       )}
