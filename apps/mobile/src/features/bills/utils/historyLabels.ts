@@ -4,17 +4,62 @@ import { formatShortDate } from './billLabels';
 
 export type ResultTone = 'under' | 'over' | 'neutral';
 
-/** The pill on a history row: under or over plan, or what was kept without one. */
-export function periodResult(period: PayPeriodSummary): { label: string; tone: ResultTone } {
-  if (!period.hasPlan) {
+/**
+ * The pill on a history row: how spending compared with the plan. Null
+ * without a plan (no salary or regular income), when there's nothing to
+ * compare with.
+ */
+export function periodResult(period: PayPeriodSummary): { label: string; tone: ResultTone } | null {
+  if (!period.hasPlan) return null;
+  if (period.current) {
     return period.result >= 0
-      ? { label: `Kept ${formatCurrency(period.result)}`, tone: 'neutral' }
-      : { label: `${formatCurrency(-period.result)} more out than in`, tone: 'over' };
+      ? { label: 'On track', tone: 'under' }
+      : { label: `${formatCurrency(-period.result)} over plan`, tone: 'over' };
   }
-  if (period.result >= 0) {
-    return { label: `${formatCurrency(period.result)} ${period.current ? 'left' : 'under'}`, tone: 'under' };
+  return period.result >= 0
+    ? { label: `${formatCurrency(period.result)} under plan`, tone: 'under' }
+    : { label: `${formatCurrency(-period.result)} over plan`, tone: 'over' };
+}
+
+/** Money from a period's pay that wasn't used: received − bills − saved − spent. */
+export function leftOver(period: PayPeriodSummary): number {
+  return Math.round((period.received - period.bills - period.movedToSavings - period.spent) * 100) / 100;
+}
+
+export interface Figure {
+  label: string;
+  amount: number;
+  tone: ResultTone;
+}
+
+/**
+ * The two figures at the bottom of a row: what was saved, and what was left.
+ * For the period in progress with a plan, "left" is what's left to spend, as
+ * on the Safe to Spend card.
+ */
+export function periodOutcome(period: PayPeriodSummary): { saved: Figure; left: Figure } {
+  const saved: Figure = {
+    label: period.current ? 'Saved so far' : 'Saved',
+    amount: period.movedToSavings,
+    tone: period.movedToSavings > 0 ? 'under' : 'neutral',
+  };
+  if (period.current && period.hasPlan) {
+    return {
+      saved,
+      left:
+        period.result >= 0
+          ? { label: 'Left to spend', amount: period.result, tone: 'under' }
+          : { label: 'Over plan by', amount: -period.result, tone: 'over' },
+    };
   }
-  return { label: `${formatCurrency(-period.result)} over`, tone: 'over' };
+  const left = leftOver(period);
+  return {
+    saved,
+    left:
+      left >= 0
+        ? { label: period.current ? 'Left so far' : 'Left over', amount: left, tone: left > 0 ? 'under' : 'neutral' }
+        : { label: 'Short', amount: -left, tone: 'over' },
+  };
 }
 
 /** "Nov 13 – Nov 26", with the year when it isn't the current one. */

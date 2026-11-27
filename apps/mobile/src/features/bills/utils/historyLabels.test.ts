@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { periodRange, periodResult, spentShare } from './historyLabels';
+import { periodOutcome, periodRange, periodResult, spentShare } from './historyLabels';
 import type { PayPeriodSummary } from '../types';
 
 const base: PayPeriodSummary = {
@@ -24,16 +24,35 @@ const base: PayPeriodSummary = {
 
 describe('periodResult', () => {
   it('shows under and over plan', () => {
-    expect(periodResult(base)).toEqual({ label: '₱900.00 under', tone: 'under' });
-    expect(periodResult({ ...base, result: -600 })).toEqual({ label: '₱600.00 over', tone: 'over' });
+    expect(periodResult(base)).toEqual({ label: '₱900.00 under plan', tone: 'under' });
+    expect(periodResult({ ...base, result: -600 })).toEqual({ label: '₱600.00 over plan', tone: 'over' });
   });
 
-  it('says "left" for the period in progress', () => {
-    expect(periodResult({ ...base, current: true }).label).toBe('₱900.00 left');
+  it('says "On track" for the period in progress', () => {
+    expect(periodResult({ ...base, current: true })?.label).toBe('On track');
   });
 
-  it('shows what was kept without a plan', () => {
-    expect(periodResult({ ...base, hasPlan: false, result: 2500 })).toEqual({ label: 'Kept ₱2,500.00', tone: 'neutral' });
+  it('has no pill without a plan', () => {
+    expect(periodResult({ ...base, hasPlan: false })).toBeNull();
+  });
+});
+
+describe('periodOutcome', () => {
+  it('shows what was saved and left over', () => {
+    // 17,000 received − 3,000 bills − 3,000 saved − 10,100 spent = 900 left.
+    const { saved, left } = periodOutcome(base);
+    expect(saved).toEqual({ label: 'Saved', amount: 3000, tone: 'under' });
+    expect(left).toEqual({ label: 'Left over', amount: 900, tone: 'under' });
+  });
+
+  it('shows a shortfall when more went out than came in', () => {
+    expect(periodOutcome({ ...base, spent: 12000 }).left).toEqual({ label: 'Short', amount: 1000, tone: 'over' });
+  });
+
+  it('uses what is left to spend for the period in progress', () => {
+    const { saved, left } = periodOutcome({ ...base, current: true, result: 4200 });
+    expect(saved.label).toBe('Saved so far');
+    expect(left).toEqual({ label: 'Left to spend', amount: 4200, tone: 'under' });
   });
 });
 

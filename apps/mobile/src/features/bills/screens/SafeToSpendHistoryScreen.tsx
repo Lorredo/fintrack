@@ -6,7 +6,7 @@ import { Button, EmptyState, Loader, Screen } from '@/components/ui';
 import { formatCurrency } from '@/shared/utils/categories';
 import { useSafeToSpendHistory } from '../hooks/useBills';
 import type { PayPeriodSummary, SafeToSpendHistory } from '../types';
-import { periodRange, periodResult, spentShare, type ResultTone } from '../utils/historyLabels';
+import { leftOver, periodOutcome, periodRange, periodResult, spentShare, type Figure, type ResultTone } from '../utils/historyLabels';
 
 const TONES: Record<ResultTone, { background: string; text: string }> = {
   under: { background: '#ECFDF5', text: '#047857' },
@@ -40,9 +40,20 @@ function SpentBar({ period }: { period: PayPeriodSummary }) {
   );
 }
 
+function FigureBox({ figure, align = 'left' }: { figure: Figure; align?: 'left' | 'right' }) {
+  return (
+    <View style={{ flex: 1, alignItems: align === 'right' ? 'flex-end' : 'flex-start' }}>
+      <Text style={{ fontSize: 12, color: '#6B7280' }}>{figure.label}</Text>
+      <Text style={{ fontSize: 18, fontWeight: '800', color: TONES[figure.tone].text, marginTop: 2 }}>
+        {formatCurrency(figure.amount)}
+      </Text>
+    </View>
+  );
+}
+
 function PeriodRow({ period }: { period: PayPeriodSummary }) {
   const result = periodResult(period);
-  const tone = TONES[result.tone];
+  const outcome = periodOutcome(period);
   return (
     <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -57,9 +68,11 @@ function PeriodRow({ period }: { period: PayPeriodSummary }) {
             <Text style={{ fontSize: 12, color: '#B45309', marginTop: 2 }}>Estimated plan, from your current pay settings</Text>
           )}
         </View>
-        <View style={{ backgroundColor: tone.background, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-          <Text style={{ fontSize: 13, fontWeight: '700', color: tone.text }}>{result.label}</Text>
-        </View>
+        {result && (
+          <View style={{ backgroundColor: TONES[result.tone].background, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: TONES[result.tone].text }}>{result.label}</Text>
+          </View>
+        )}
       </View>
 
       {period.hasPlan && <SpentBar period={period} />}
@@ -76,27 +89,38 @@ function PeriodRow({ period }: { period: PayPeriodSummary }) {
         {period.hasPlan && <Line label="Planned spending" value={period.spendingMoney} />}
         <Line label="Spent" value={period.spent} minus />
       </View>
+
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
+        <FigureBox figure={outcome.saved} />
+        <FigureBox figure={outcome.left} align="right" />
+      </View>
     </View>
   );
 }
 
-function Summary({ totals }: { totals: SafeToSpendHistory['totals'] }) {
+function Summary({ totals, left }: { totals: SafeToSpendHistory['totals']; left: number }) {
   if (totals.periods === 0) return null;
   const planned = totals.under + totals.over;
   const under = totals.result >= 0;
   return (
-    <View style={{ backgroundColor: under ? '#ECFDF5' : '#FEF2F2', borderRadius: 20, padding: 18, marginBottom: 16 }}>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: under ? '#047857' : '#B91C1C' }}>
-        Last {totals.periods} pay period{totals.periods === 1 ? '' : 's'}
+    <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, marginBottom: 16 }}>
+      <Text style={{ fontSize: 13, fontWeight: '600', color: '#374151' }}>
+        Last {totals.periods} finished pay period{totals.periods === 1 ? '' : 's'}
       </Text>
+      <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+        <FigureBox figure={{ label: 'Saved', amount: totals.movedToSavings, tone: totals.movedToSavings > 0 ? 'under' : 'neutral' }} />
+        <FigureBox
+          figure={left >= 0 ? { label: 'Left over', amount: left, tone: left > 0 ? 'under' : 'neutral' } : { label: 'Short', amount: -left, tone: 'over' }}
+          align="right"
+        />
+      </View>
       {planned > 0 && (
-        <Text style={{ fontSize: 26, fontWeight: '800', color: under ? '#065F46' : '#B91C1C', marginTop: 2 }}>
-          {formatCurrency(Math.abs(totals.result))} {under ? 'under plan' : 'over plan'}
+        <Text style={{ fontSize: 13, color: under ? '#047857' : '#B91C1C', marginTop: 10 }}>
+          {formatCurrency(Math.abs(totals.result))} {under ? 'under plan' : 'over plan'} · {totals.under} under, {totals.over} over
         </Text>
       )}
-      <Text style={{ fontSize: 13, color: '#374151', marginTop: 6 }}>
-        {formatCurrency(totals.movedToSavings)} moved to savings
-        {planned > 0 ? ` · ${totals.under} under, ${totals.over} over` : ''}
+      <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>
+        Saved is what you moved to savings. Left over is what you received minus bills, savings and spending.
       </Text>
     </View>
   );
@@ -108,6 +132,9 @@ export default function SafeToSpendHistoryScreen() {
     useSafeToSpendHistory();
 
   const periods = data?.pages.flatMap((page) => page.periods) ?? [];
+  // Left over across finished periods; the one in progress isn't done yet.
+  const totalLeft =
+    Math.round(periods.filter((period) => !period.current).reduce((sum, period) => sum + leftOver(period), 0) * 100) / 100;
   // Totals for every period loaded so far.
   const totals = (data?.pages ?? []).reduce(
     (sum, page) => ({
@@ -145,7 +172,9 @@ export default function SafeToSpendHistoryScreen() {
           refreshing={isRefetching && !isFetchingNextPage}
           onRefresh={refetch}
           contentContainerStyle={{ paddingBottom: 32 }}
-          ListHeaderComponent={<Summary totals={{ ...totals, result: Math.round(totals.result * 100) / 100 }} />}
+          ListHeaderComponent={
+            <Summary totals={{ ...totals, result: Math.round(totals.result * 100) / 100 }} left={totalLeft} />
+          }
           ListEmptyComponent={
             <EmptyState
               title="No history yet"
