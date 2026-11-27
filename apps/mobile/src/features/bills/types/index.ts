@@ -122,6 +122,8 @@ export interface SafeToSpend {
   // Salary mode.
   salary: number;
   incomeRecorded: number;
+  /** Salary and allowances recorded so far, without extra income. Older servers leave it out. */
+  salaryRecorded?: number;
   /** True until the salary has been recorded as income this period. */
   payEstimated: boolean;
   /** Salary plus the regular income due this period. */
