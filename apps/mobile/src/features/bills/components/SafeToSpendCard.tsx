@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import { Modal } from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/features/toast/hooks/useToast';
 import { formatCurrency, getLocalISODate } from '@/shared/utils/categories';
 import { useSafeToSpend } from '../hooks/useBills';
@@ -223,6 +223,17 @@ export function SafeToSpendCard() {
         </Pressable>
       )}
 
+      <Pressable
+        onPress={() => router.push('/safe-to-spend-history')}
+        accessibilityRole="button"
+        className="active:opacity-70"
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -8, marginBottom: 16, paddingHorizontal: 4 }}
+      >
+        <MaterialCommunityIcons name="history" size={16} color="#2563EB" />
+        <Text style={{ flex: 1, fontSize: 13, color: '#2563EB' }}>Pay period history: see how past paydays went</Text>
+        <MaterialCommunityIcons name="chevron-right" size={16} color="#93C5FD" />
+      </Pressable>
+
       <RecordPayModal
         item={earlyPay}
         startDate={getLocalISODate()}
@@ -244,6 +255,16 @@ export function SafeToSpendCard() {
 
       <Modal visible={showBreakdown} onClose={() => setShowBreakdown(false)} title="How it's worked out">
         <Breakdown safe={safe} />
+        <View style={{ marginTop: 16 }}>
+          <Button
+            title="See pay period history"
+            variant="outline"
+            onPress={() => {
+              setShowBreakdown(false);
+              router.push('/safe-to-spend-history');
+            }}
+          />
+        </View>
       </Modal>
     </>
   );

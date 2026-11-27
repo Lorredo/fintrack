@@ -167,3 +167,35 @@ export interface RecordPayInput {
   amount?: number;
   accountId?: string;
 }
+
+/** How one pay period turned out, for Pay period history. */
+export interface PayPeriodSummary {
+  start: string;
+  /** The last day, inclusive. */
+  end: string;
+  current: boolean;
+  daysLeft: number;
+  /** False without a salary or regular income; result is then what was kept. */
+  hasPlan: boolean;
+  /** No plan was saved for this period, so current settings were used. */
+  planEstimated: boolean;
+  received: number;
+  extraIncome: number;
+  pay: number;
+  payEstimated: boolean;
+  /** Bills, paluwagan contributions and utang paid back. */
+  bills: number;
+  savingsTarget: number;
+  movedToSavings: number;
+  spendingMoney: number;
+  spent: number;
+  /** Spending money − spent: positive is under plan, negative is over. */
+  result: number;
+}
+
+export interface SafeToSpendHistory {
+  periods: PayPeriodSummary[];
+  /** Pass as `before` for older periods; null when there are none. */
+  nextBefore: string | null;
+  totals: { periods: number; under: number; over: number; result: number; movedToSavings: number };
+}
