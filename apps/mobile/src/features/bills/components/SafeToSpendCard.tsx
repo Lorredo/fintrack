@@ -10,6 +10,7 @@ import { useSafeToSpend } from '../hooks/useBills';
 import type { PayItem, ReservedBill, SafeToSpend } from '../types';
 import { formatShortDate } from '../utils/billLabels';
 import RecordPayModal from './RecordPayModal';
+import { scheduleShortName } from '../utils/payScheduleLabels';
 
 function BreakdownLine({ label, value, minus, bold }: { label: string; value: number; minus?: boolean; bold?: boolean }) {
   return (
@@ -171,7 +172,20 @@ export function SafeToSpendCard() {
         className="active:opacity-80"
         style={{ backgroundColor: short ? '#FEF2F2' : '#ECFDF5', borderRadius: 20, padding: 18, marginBottom: 16 }}
       >
-        <Text style={{ fontSize: 13, fontWeight: '600', color: tone }}>Safe to spend</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: tone }}>Safe to spend</Text>
+          {/* Which pay type is in use, since the two plan very differently. */}
+          <Pressable
+            onPress={() => router.push('/pay-settings')}
+            accessibilityRole="button"
+            accessibilityLabel={`Pay type: ${scheduleShortName(safe.paySchedule)}. Change in Pay settings`}
+            hitSlop={8}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFFFFB3', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}
+          >
+            <MaterialCommunityIcons name={safe.paySchedule === 'irregular' ? 'calendar-month' : 'calendar-range'} size={12} color={tone} />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: tone }}>{scheduleShortName(safe.paySchedule)}</Text>
+          </Pressable>
+        </View>
         {short ? (
           <>
             <Text style={{ fontSize: 28, fontWeight: '800', color: '#B91C1C', letterSpacing: -0.5, marginTop: 2 }}>

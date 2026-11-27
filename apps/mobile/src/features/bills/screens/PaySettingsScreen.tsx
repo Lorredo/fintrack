@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Switch, Text, View } from 'react-native';
+import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
@@ -14,6 +14,14 @@ import { requestReminderPermission } from '../services/reminders';
 import type { PaySchedule, PaySettings, RegularIncome } from '../types';
 import { formatCurrency } from '@/shared/utils/categories';
 import { describeRegularIncome } from '../utils/billLabels';
+import {
+  amountLabel,
+  extraIncomeHelp,
+  savingsLabel,
+  scheduleShortName,
+  scheduleSummary,
+  switchPrompt,
+} from '../utils/payScheduleLabels';
 
 const EXTRA_SPLITS: { value: PaySettings['extraToSavingsPercent']; label: string }[] = [
   { value: 0, label: 'Spend it' },
@@ -48,6 +56,32 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   const salaryValid = Number.isFinite(parsedSalary) && parsedSalary >= 0;
   const isValid = savingsValid && salaryValid;
   const isIrregular = paySchedule === 'irregular';
+  const savedSchedule = settings.paySchedule;
+
+  // Switching changes what the amounts mean (per payday or per month), so
+  // offer to convert them instead of silently halving or doubling the plan.
+  const handleScheduleChange = (next: PaySchedule | null) => {
+    const prompt =
+      next && paySchedule
+        ? switchPrompt(paySchedule, next, salaryValid ? parsedSalary : 0, savingsValid ? parsedSavings : 0)
+        : null;
+    if (!prompt) {
+      setPaySchedule(next);
+      return;
+    }
+    Alert.alert(prompt.title, prompt.message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Keep amounts', onPress: () => setPaySchedule(next) },
+      {
+        text: 'Update amounts',
+        onPress: () => {
+          setPaySchedule(next);
+          if (prompt.salary > 0) setSalary(String(prompt.salary));
+          if (prompt.savings > 0) setSavings(String(prompt.savings));
+        },
+      },
+    ]);
+  };
 
   const handleSave = () => {
     if (!isValid || !paySchedule) return;
@@ -75,17 +109,18 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
   return (
     <View style={{ gap: 20 }}>
       <View style={{ gap: 6 }}>
-        <ChoicePills label="When do you get paid?" choices={SCHEDULES} value={paySchedule} onChange={setPaySchedule} />
-        <Text className="text-sm text-text-secondary">
-          {paySchedule === 'irregular'
-            ? 'Safe to Spend counts down to the end of each month.'
-            : 'Safe to Spend counts down to your next payday. When the 15th or 30th is a weekend or holiday, payday is the working day before. In February, the 30th is the last day of the month.'}
-        </Text>
+        <ChoicePills label="When do you get paid?" choices={SCHEDULES} value={paySchedule} onChange={handleScheduleChange} />
+        <Text className="text-sm text-text-secondary">{scheduleSummary(paySchedule)}</Text>
+        {savedSchedule && paySchedule !== savedSchedule && (
+          <Text style={{ fontSize: 13, fontWeight: '600', color: '#B45309' }}>
+            Not saved yet: Safe to Spend stays on {scheduleShortName(savedSchedule)} until you tap Save.
+          </Text>
+        )}
       </View>
 
       <View style={{ gap: 6 }}>
         <Input
-          label={isIrregular ? 'Expected income per month' : 'Salary per payday'}
+          label={amountLabel(paySchedule)}
           placeholder="0.00"
           keyboardType="decimal-pad"
           value={salary}
@@ -156,7 +191,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
 
       <View style={{ gap: 6 }}>
         <Input
-          label="Set aside for savings each payday"
+          label={savingsLabel(paySchedule)}
           placeholder="0.00"
           keyboardType="decimal-pad"
           value={savings}
@@ -176,15 +211,7 @@ function PaySettingsForm({ settings }: { settings: PaySettings }) {
             value={extraToSavings}
             onChange={setExtraToSavings}
           />
-          <Text className="text-sm text-text-secondary">
-            {extraToSavings === 50
-              ? 'Extra income is split: half to savings, half to spending.'
-              : extraToSavings === 100
-                ? 'Extra income all goes to savings.'
-                : 'Extra income all goes to spending.'}{' '}
-            Income in Overtime, Bonus & Commission or any category other than Salary and Allowance counts as extra as
-            soon as you record it, and so does salary above what you set.
-          </Text>
+          <Text className="text-sm text-text-secondary">{extraIncomeHelp(paySchedule, extraToSavings)}</Text>
         </View>
       )}
 
